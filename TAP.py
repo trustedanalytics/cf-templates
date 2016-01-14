@@ -22,7 +22,8 @@ from troposphere.constants import *
 # pylint: enable=wildcard-import, unused-wildcard-import
 
 from troposphere import (AWS_REGION, AWS_STACK_NAME, cloudformation, ec2, iam, Base64, FindInMap,
-                         GetAtt, GetAZs, Join, Output, Parameter, Ref, Select, Tags, Template)
+                         GetAtt, GetAZs, Join, Output, Parameter, Ref, Select, Tags, Template,
+                         autoscaling)
 
 import awacs.aws
 import awacs.ec2
@@ -794,6 +795,77 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     SecurityGroupIds=[Ref(CLOUDERA_SECURITY_GROUP)],
     SubnetId=Ref(CLOUDERA_SUBNET),
     Tags=Tags(Name='Cloudera Manager'),
+    ))
+
+CLOUDERA_MASTER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
+    'ClouderaMasterInstanceProfile',
+    Roles=[Ref(CLOUDERA_ROLE)],
+    ))
+
+CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaMasterInstanceType',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[M3_XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    ))
+
+CLOUDERA_MASTER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
+    'ClouderaMasterLaunchConfiguration',
+    DependsOn=KEY_NAME_WAIT_CONDITION.title,
+    IamInstanceProfile=Ref(CLOUDERA_MASTER_INSTANCE_PROFILE),
+    ImageId=RHEL_AMI,
+    InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
+    KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
+    SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP)],
+    ))
+
+CLOUDERA_MASTER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScalingGroup(
+    'ClouderaMasterAutoScalingGroup',
+    DesiredCapacity='2',
+    Tags=[autoscaling.Tag('Name', 'Cloudera Master', True)],
+    LaunchConfigurationName=Ref(CLOUDERA_MASTER_LAUNCH_CONFIGURATION),
+    MinSize='2',
+    MaxSize='2',
+    VPCZoneIdentifier=[Ref(CLOUDERA_SUBNET)],
+    ))
+
+CLOUDERA_WORKER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
+    'ClouderaWorkerInstanceProfile',
+    Roles=[Ref(CLOUDERA_ROLE)],
+    ))
+
+CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaWorkerInstanceType',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[M3_XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    ))
+
+CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
+    'ClouderaWorkerLaunchConfiguration',
+    DependsOn=KEY_NAME_WAIT_CONDITION.title,
+    IamInstanceProfile=Ref(CLOUDERA_WORKER_INSTANCE_PROFILE),
+    ImageId=RHEL_AMI,
+    InstanceType=Ref(CLOUDERA_WORKER_INSTANCE_TYPE),
+    KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
+    SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP)],
+    ))
+
+CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
+    'ClouderaWorkerCount',
+    Type=NUMBER,
+    Default='3',
+    MinValue='1',
+    ))
+
+CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScalingGroup(
+    'ClouderaWorkerAutoScalingGroup',
+    DesiredCapacity=Ref(CLOUDERA_WORKER_COUNT),
+    Tags=[autoscaling.Tag('Name', 'Cloudera Worker', True)],
+    LaunchConfigurationName=Ref(CLOUDERA_WORKER_LAUNCH_CONFIGURATION),
+    MinSize=Ref(CLOUDERA_WORKER_COUNT),
+    MaxSize=Ref(CLOUDERA_WORKER_COUNT),
+    VPCZoneIdentifier=[Ref(CLOUDERA_SUBNET)],
     ))
 
 # }}}cloudera
