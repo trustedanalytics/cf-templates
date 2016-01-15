@@ -786,6 +786,30 @@ TEMPLATE.add_resource(ec2.SecurityGroupIngress(
 
 CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     'ClouderaManagerInstance',
+    BlockDeviceMappings=[
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sda1',
+            Ebs=ec2.EBSBlockDevice(
+                VolumeSize='30',
+                )
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdb',
+            VirtualName='ephemeral0'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdc',
+            VirtualName='ephemeral1'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdd',
+            VirtualName='ephemeral2'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sde',
+            VirtualName='ephemeral3'
+            ),
+        ],
     DependsOn=KEY_NAME_WAIT_CONDITION.title,
     DisableApiTermination=True,
     IamInstanceProfile=Ref(CLOUDERA_MANAGER_INSTANCE_PROFILE),
@@ -811,6 +835,30 @@ CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
 
 CLOUDERA_MASTER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
     'ClouderaMasterLaunchConfiguration',
+    BlockDeviceMappings=[
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sda1',
+            Ebs=ec2.EBSBlockDevice(
+                VolumeSize='30',
+                )
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdb',
+            VirtualName='ephemeral0'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdc',
+            VirtualName='ephemeral1'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdd',
+            VirtualName='ephemeral2'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sde',
+            VirtualName='ephemeral3'
+            ),
+        ],
     DependsOn=KEY_NAME_WAIT_CONDITION.title,
     IamInstanceProfile=Ref(CLOUDERA_MASTER_INSTANCE_PROFILE),
     ImageId=RHEL_AMI,
@@ -843,6 +891,30 @@ CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
 
 CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
     'ClouderaWorkerLaunchConfiguration',
+    BlockDeviceMappings=[
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sda1',
+            Ebs=ec2.EBSBlockDevice(
+                VolumeSize='30',
+                )
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdb',
+            VirtualName='ephemeral0'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdc',
+            VirtualName='ephemeral1'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sdd',
+            VirtualName='ephemeral2'
+            ),
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sde',
+            VirtualName='ephemeral3'
+            ),
+        ],
     DependsOn=KEY_NAME_WAIT_CONDITION.title,
     IamInstanceProfile=Ref(CLOUDERA_WORKER_INSTANCE_PROFILE),
     ImageId=RHEL_AMI,
