@@ -784,6 +784,13 @@ TEMPLATE.add_resource(ec2.SecurityGroupIngress(
     GroupId=Ref(CLOUDERA_SECURITY_GROUP),
     ))
 
+CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaMasterInstanceType',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[M3_XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    ))
+
 CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     'ClouderaManagerInstance',
     BlockDeviceMappings=[
@@ -814,7 +821,7 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     DisableApiTermination=True,
     IamInstanceProfile=Ref(CLOUDERA_MANAGER_INSTANCE_PROFILE),
     ImageId=RHEL_AMI,
-    InstanceType=T2_SMALL,
+    InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroupIds=[Ref(CLOUDERA_SECURITY_GROUP)],
     SubnetId=Ref(CLOUDERA_SUBNET),
@@ -824,13 +831,6 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
 CLOUDERA_MASTER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     'ClouderaMasterInstanceProfile',
     Roles=[Ref(CLOUDERA_ROLE)],
-    ))
-
-CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'ClouderaMasterInstanceType',
-    Type=STRING,
-    Default=M3_XLARGE,
-    AllowedValues=[M3_XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
     ))
 
 CLOUDERA_MASTER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
