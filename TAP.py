@@ -354,6 +354,14 @@ JUMP_BOX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
 
 JUMP_BOX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     'JumpBoxInstance',
+    BlockDeviceMappings=[
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sda1',
+            Ebs=ec2.EBSBlockDevice(
+                VolumeSize='30',
+                )
+            ),
+        ],
     DisableApiTermination=True,
     IamInstanceProfile=Ref(JUMP_BOX_INSTANCE_PROFILE),
     ImageId=UBUNTU_AMI,
