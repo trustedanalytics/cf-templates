@@ -771,6 +771,12 @@ CLOUDERA_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
             ToPort='-1',
             SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
             ),
+        ec2.SecurityGroupRule(
+            IpProtocol='-1',
+            FromPort='-1',
+            ToPort='-1',
+            SourceSecurityGroupId=Ref(BOSH_SECURITY_GROUP),
+            ),
         ],
     SecurityGroupEgress=[
         ec2.SecurityGroupRule(
