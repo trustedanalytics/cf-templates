@@ -48,8 +48,8 @@ $ export AWS_SECRET_ACCESS_KEY=<secret_key>
 Configure `ansible-pull`:
 
 ```
-export ANSIBLE_PULL_URL=https://<username>:<token>@github.com/<repository>/ansible-playbooks.git
-export ANSIBLE_PULL_CHECKOUT=master
+$ export ANSIBLE_PULL_URL=https://<username>:<token>@github.com/<repository>/ansible-playbooks.git
+$ export ANSIBLE_PULL_CHECKOUT=master
 ```
 
 Create AWS CloudFormation descriptions:
