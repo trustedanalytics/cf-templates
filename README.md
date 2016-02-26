@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-1. [Install virutalenv](https://virtualenv.readthedocs.org/en/latest/installation.html).
+1. [Install virtualenv](https://virtualenv.readthedocs.org/en/latest/installation.html).
 2. [Allocate an Elastic IP address](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html#using-instance-addressing-eips-allocating).
 3. [Create a key pair](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html#having-ec2-create-your-key-pair).
 
