@@ -38,13 +38,6 @@ Install requirements:
 $ pip install -r requirements.txt
 ```
 
-Configure the [AWS CLI using environment variables](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-environment):
-
-```
-$ export AWS_ACCESS_KEY_ID=<access_key>
-$ export AWS_SECRET_ACCESS_KEY=<secret_key>
-```
-
 Configure `ansible-pull`:
 
 ```
@@ -59,6 +52,13 @@ $ ./TAP.py >TAP.template
 ```
 
 ## Creating an AWS CloudFormation stack using `cfn` script
+
+Configure the [AWS CLI using environment variables](http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-environment):
+
+```
+$ export AWS_ACCESS_KEY_ID=<access_key>
+$ export AWS_SECRET_ACCESS_KEY=<secret_key>
+```
 
 ```
 $ cfn -c TAP.template -b <bucket> -p cfPassword=<password> -p cfSystemDomain=<domain> -p cfElasticIP=<elastic_ip> -p KeyName=<key_name> -r <region> -t -C CAPABILITY_IAM <stack>
