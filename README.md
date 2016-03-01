@@ -60,6 +60,10 @@ $ export AWS_ACCESS_KEY_ID=<access_key>
 $ export AWS_SECRET_ACCESS_KEY=<secret_key>
 ```
 
+Create and upload template to S3 bucket, then create stack using template.
+
 ```
 $ cfn -c TAP.template -b <bucket> -p cfPassword=<password> -p cfSystemDomain=<domain> -p cfElasticIP=<elastic_ip> -p KeyName=<key_name> -r <region> -t -C CAPABILITY_IAM <stack>
 ```
+
+[`CAPABILITY_IAM`](http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-iam-template.html#capabilities) is required for the IAM resources.
