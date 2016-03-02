@@ -8,18 +8,19 @@
 
 ## Parameters
 
-| Name                         | Description | Default value |
-| ---------------------------- | ----------- | ------------- |
-| **`cfPassword`**             |             |               |
-| **`cfSystemDomain`**         |             |               |
-| **`cfElasticIP`**            |             |               |
-| **`KeyName`**                |             |               |
-| `ClouderaMasterInstanceType` |             | `m3.xlarge`   |
-| `ClouderaWorkerCount`        |             | 3             |
-| `ClouderaWorkerInstanceType` |             | `m3.xlarge`   |
-| `NATInstanceType`            |             | `t2.micro`    |
-| `cfRunnerZ1InstanceType`     |             | `c3.large`    |
-| `cfRunnerZ1Instances`        |             | 1             |
+| Name                           | Description | Default value |
+| ------------------------------ | ----------- | ------------- |
+| **`cfPassword`**               |             |               |
+| **`cfSystemDomain`**           |             |               |
+| **`cfElasticIP`**              |             |               |
+| **`KeyName`**                  |             |               |
+| `ClouderaMasterInstanceType`   |             | `m3.xlarge`   |
+| `ClouderaWorkerCount`          |             | 3             |
+| `ClouderaWorkerInstanceType`   |             | `m3.xlarge`   |
+| `NATInstanceType`              |             | `t2.micro`    |
+| `cfRunnerZ1InstanceType`       |             | `c3.large`    |
+| `cfRunnerZ1Instances`          |             | 1             |
+| `TerminationProtectionEnabled` |             | `true`        |
 
 You can use [xip.io](http://xip.io/) as a domain. For example for Elastic IP 75.101.155.119, domain 75.101.155.119.xip.io can be used.
 
