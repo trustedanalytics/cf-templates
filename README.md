@@ -51,6 +51,9 @@ Create AWS CloudFormation descriptions:
 ```
 $ ./TAP.py >TAP.template
 ```
+## Creating a stack using AWS CloudFormation Console
+
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=tap&templateURL=https://s3.amazonaws.com/trustedanalytics/cf-templates/v0.6.x/TAP.template)
 
 ## Creating an AWS CloudFormation stack using `cfn` script
 
