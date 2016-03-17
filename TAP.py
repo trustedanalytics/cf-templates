@@ -294,6 +294,13 @@ KEY_NAME_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
 
 # }}}key-name
 
+TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
+    'TerminationProtectionEnabled',
+    Type=STRING,
+    Default='true',
+    AllowedValues=['true', 'false'],
+    ))
+
 # {{{jump-box
 
 JUMP_BOX_ROLE = TEMPLATE.add_resource(iam.Role(
@@ -362,7 +369,7 @@ JUMP_BOX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
                 )
             ),
         ],
-    DisableApiTermination=True,
+    DisableApiTermination=Ref(TERMINATION_PROTECTION_ENABLED),
     IamInstanceProfile=Ref(JUMP_BOX_INSTANCE_PROFILE),
     ImageId=UBUNTU_AMI,
     InstanceType=T2_SMALL,
@@ -832,7 +839,7 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
             ),
         ],
     DependsOn=KEY_NAME_WAIT_CONDITION.title,
-    DisableApiTermination=True,
+    DisableApiTermination=Ref(TERMINATION_PROTECTION_ENABLED),
     IamInstanceProfile=Ref(CLOUDERA_MANAGER_INSTANCE_PROFILE),
     ImageId=RHEL_AMI,
     InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
