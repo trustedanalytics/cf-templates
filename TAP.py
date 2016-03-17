@@ -44,15 +44,15 @@ TEMPLATE = Template()
 TEMPLATE.add_version('2010-09-09')
 
 TEMPLATE.add_mapping('Region2AMI', {
-    EU_WEST_1:      {'AWSNAT': 'ami-6975eb1e', 'Ubuntu': 'ami-cd0fd6be', 'RHEL': 'ami-78d29c0f'},
-    AP_SOUTHEAST_1: {'AWSNAT': 'ami-b49dace6', 'Ubuntu': 'ami-9e7dbafd', 'RHEL': 'ami-faedeea8'},
-    AP_SOUTHEAST_2: {'AWSNAT': 'ami-e7ee9edd', 'Ubuntu': 'ami-187a247b', 'RHEL': 'ami-7f0d4b45'},
-    EU_CENTRAL_1:   {'AWSNAT': 'ami-46073a5b', 'Ubuntu': 'ami-bdc9dad1', 'RHEL': 'ami-8e96ac93'},
-    AP_NORTHEAST_1: {'AWSNAT': 'ami-03cf3903', 'Ubuntu': 'ami-7386a11d', 'RHEL': 'ami-78379d78'},
-    US_EAST_1:      {'AWSNAT': 'ami-303b1458', 'Ubuntu': 'ami-bb156ad1', 'RHEL': 'ami-0d28fe66'},
-    SA_EAST_1:      {'AWSNAT': 'ami-fbfa41e6', 'Ubuntu': 'ami-5040fb3c', 'RHEL': 'ami-d1d35ccc'},
-    US_WEST_1:      {'AWSNAT': 'ami-7da94839', 'Ubuntu': 'ami-a88de2c8', 'RHEL': 'ami-5b8a781f'},
-    US_WEST_2:      {'AWSNAT': 'ami-69ae8259', 'Ubuntu': 'ami-b4a2b5d5', 'RHEL': 'ami-75f3f145'},
+    EU_WEST_1:      {'Ubuntu': 'ami-cd0fd6be', 'RHEL': 'ami-78d29c0f'},
+    AP_SOUTHEAST_1: {'Ubuntu': 'ami-9e7dbafd', 'RHEL': 'ami-faedeea8'},
+    AP_SOUTHEAST_2: {'Ubuntu': 'ami-187a247b', 'RHEL': 'ami-7f0d4b45'},
+    EU_CENTRAL_1:   {'Ubuntu': 'ami-bdc9dad1', 'RHEL': 'ami-8e96ac93'},
+    AP_NORTHEAST_1: {'Ubuntu': 'ami-7386a11d', 'RHEL': 'ami-78379d78'},
+    US_EAST_1:      {'Ubuntu': 'ami-bb156ad1', 'RHEL': 'ami-0d28fe66'},
+    SA_EAST_1:      {'Ubuntu': 'ami-5040fb3c', 'RHEL': 'ami-d1d35ccc'},
+    US_WEST_1:      {'Ubuntu': 'ami-a88de2c8', 'RHEL': 'ami-5b8a781f'},
+    US_WEST_2:      {'Ubuntu': 'ami-b4a2b5d5', 'RHEL': 'ami-75f3f145'},
     })
 
 UBUNTU_AMI = FindInMap('Region2AMI', Ref(AWS_REGION), 'Ubuntu')
@@ -218,51 +218,21 @@ KEY_NAME = TEMPLATE.add_parameter(Parameter(
     Type=KEY_PAIR_NAME,
     ))
 
-# {{{nat-instance
+# {{{nat-gateway
 
-NAT_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'NATInstanceType',
-    Type=STRING,
-    Default=T2_MICRO,
-    AllowedValues=[T2_MICRO, T2_SMALL, T2_MEDIUM, T2_LARGE, M4_LARGE],
-    ))
-
-NAT_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
-    'NATSecurityGroup',
-    GroupDescription='NAT Security Group',
-    SecurityGroupIngress=[
-        ],
-    SecurityGroupEgress=[
-        ec2.SecurityGroupRule(
-            IpProtocol='-1',
-            FromPort='-1',
-            ToPort='-1',
-            CidrIp='0.0.0.0/0',
-            ),
-        ],
-    Tags=Tags(Name='nat'),
-    VpcId=Ref(VPC),
-    ))
-
-NAT_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
-    'NATInstance',
-    ImageId=FindInMap('Region2AMI', Ref(AWS_REGION), 'AWSNAT'),
-    InstanceType=Ref(NAT_INSTANCE_TYPE),
-    KeyName=Ref(KEY_NAME),
-    SecurityGroupIds=[Ref(NAT_SECURITY_GROUP)],
-    SourceDestCheck=False,
-    SubnetId=Ref(PUBLIC_SUBNET),
-    Tags=Tags(Name='NAT'),
-    ))
-
-TEMPLATE.add_resource(ec2.EIP(
+NAT_EIP = TEMPLATE.add_resource(ec2.EIP(
     'NATEIP',
     DependsOn=ATTACH_GATEWAY.title,
     Domain='vpc',
-    InstanceId=Ref(NAT_INSTANCE),
     ))
 
-# }}}nat-instance
+NAT_GATEWAY = TEMPLATE.add_resource(ec2.NatGateway(
+    'NATGateway',
+    AllocationId=GetAtt(NAT_EIP, 'AllocationId'),
+    SubnetId=Ref(PUBLIC_SUBNET),
+    ))
+
+# }}}nat-gateway
 
 # {{{private-route-table
 
@@ -275,7 +245,7 @@ TEMPLATE.add_resource(ec2.Route(
     'PrivateRoute',
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     DestinationCidrBlock='0.0.0.0/0',
-    InstanceId=Ref(NAT_INSTANCE),
+    NatGatewayId=Ref(NAT_GATEWAY),
     ))
 
 # }}}private-route-table
@@ -403,14 +373,6 @@ BOSH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
     Tags=Tags(Name='BOSH subnet'),
     ))
 
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=BOSH_SUBNET.CidrBlock,
-        ))
-
 TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     'BOSHSubnetRouteTableAssociation',
     SubnetId=Ref(BOSH_SUBNET),
@@ -532,14 +494,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
 
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=CF_SUBNET.CidrBlock,
-        ))
-
 CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'cfPublicSecurityGroup',
     GroupDescription='cf-public',
@@ -627,14 +581,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     SubnetId=Ref(DOCKER_SUBNET),
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
-
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=DOCKER_SUBNET.CidrBlock,
-        ))
 
 DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'dockerBrokerPublicSecurityGroup',
@@ -726,14 +672,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     SubnetId=Ref(CLOUDERA_SUBNET),
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
-
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=CLOUDERA_SUBNET.CidrBlock,
-        ))
 
 CLOUDERA_ROLE = TEMPLATE.add_resource(iam.Role(
     'ClouderaRole',
