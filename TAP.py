@@ -44,15 +44,15 @@ TEMPLATE = Template()
 TEMPLATE.add_version('2010-09-09')
 
 TEMPLATE.add_mapping('Region2AMI', {
-    EU_WEST_1:      {'AWSNAT': 'ami-6975eb1e', 'Ubuntu': 'ami-cd0fd6be', 'RHEL': 'ami-78d29c0f'},
-    AP_SOUTHEAST_1: {'AWSNAT': 'ami-b49dace6', 'Ubuntu': 'ami-9e7dbafd', 'RHEL': 'ami-faedeea8'},
-    AP_SOUTHEAST_2: {'AWSNAT': 'ami-e7ee9edd', 'Ubuntu': 'ami-187a247b', 'RHEL': 'ami-7f0d4b45'},
-    EU_CENTRAL_1:   {'AWSNAT': 'ami-46073a5b', 'Ubuntu': 'ami-bdc9dad1', 'RHEL': 'ami-8e96ac93'},
-    AP_NORTHEAST_1: {'AWSNAT': 'ami-03cf3903', 'Ubuntu': 'ami-7386a11d', 'RHEL': 'ami-78379d78'},
-    US_EAST_1:      {'AWSNAT': 'ami-303b1458', 'Ubuntu': 'ami-bb156ad1', 'RHEL': 'ami-0d28fe66'},
-    SA_EAST_1:      {'AWSNAT': 'ami-fbfa41e6', 'Ubuntu': 'ami-5040fb3c', 'RHEL': 'ami-d1d35ccc'},
-    US_WEST_1:      {'AWSNAT': 'ami-7da94839', 'Ubuntu': 'ami-a88de2c8', 'RHEL': 'ami-5b8a781f'},
-    US_WEST_2:      {'AWSNAT': 'ami-69ae8259', 'Ubuntu': 'ami-b4a2b5d5', 'RHEL': 'ami-75f3f145'},
+    EU_WEST_1:      {'Ubuntu': 'ami-cd0fd6be', 'RHEL': 'ami-78d29c0f'},
+    AP_SOUTHEAST_1: {'Ubuntu': 'ami-9e7dbafd', 'RHEL': 'ami-faedeea8'},
+    AP_SOUTHEAST_2: {'Ubuntu': 'ami-187a247b', 'RHEL': 'ami-7f0d4b45'},
+    EU_CENTRAL_1:   {'Ubuntu': 'ami-bdc9dad1', 'RHEL': 'ami-8e96ac93'},
+    AP_NORTHEAST_1: {'Ubuntu': 'ami-7386a11d', 'RHEL': 'ami-78379d78'},
+    US_EAST_1:      {'Ubuntu': 'ami-bb156ad1', 'RHEL': 'ami-0d28fe66'},
+    SA_EAST_1:      {'Ubuntu': 'ami-5040fb3c', 'RHEL': 'ami-d1d35ccc'},
+    US_WEST_1:      {'Ubuntu': 'ami-a88de2c8', 'RHEL': 'ami-5b8a781f'},
+    US_WEST_2:      {'Ubuntu': 'ami-b4a2b5d5', 'RHEL': 'ami-75f3f145'},
     })
 
 UBUNTU_AMI = FindInMap('Region2AMI', Ref(AWS_REGION), 'Ubuntu')
@@ -112,14 +112,14 @@ def metadata(resource, ansible_group_name, ansible_group_vars=None):
                         content=Join('', [
                             '[cfn-init]\n',
                             'triggers=post.update\n',
-                            'path=Resources.JumpBoxInstance.Metadata\n',
+                            'path=Resources.{0}.Metadata\n'.format(resource.title),
                             'action=cfn-init -s ', Ref(AWS_STACK_NAME),
-                            ' -r JumpBoxInstance --region ', Ref(AWS_REGION), '\n',
-                            'runas=root\n'
+                            ' -r {0} --region ', Ref(AWS_REGION), '\n'.format(resource.title),
+                            'runas=root\n',
                             '\n',
                             '[ansible-pull]\n',
                             'triggers=post.add, post.update\n',
-                            'path=Resources.JumpBoxInstance.Metadata\n',
+                            'path=Resources.{0}.Metadata\n'.format(resource.title),
                             'action=ansible-pull -U {0} -C {1} -f\n'.format(ANSIBLE_PULL_URL,
                                                                             ANSIBLE_PULL_CHECKOUT),
                             'runas=root\n'
@@ -189,7 +189,7 @@ PUBLIC_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
     VpcId=Ref(VPC),
     CidrBlock='10.0.0.0/24',
     AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Public subnet'),
+    Tags=Tags(Name='public subnet'),
     ))
 
 PUBLIC_ROUTE_TABLE = TEMPLATE.add_resource(ec2.RouteTable(
@@ -218,51 +218,21 @@ KEY_NAME = TEMPLATE.add_parameter(Parameter(
     Type=KEY_PAIR_NAME,
     ))
 
-# {{{nat-instance
+# {{{nat-gateway
 
-NAT_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'NATInstanceType',
-    Type=STRING,
-    Default=T2_MICRO,
-    AllowedValues=[T2_MICRO, T2_SMALL, T2_MEDIUM, T2_LARGE, M4_LARGE],
-    ))
-
-NAT_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
-    'NATSecurityGroup',
-    GroupDescription='NAT Security Group',
-    SecurityGroupIngress=[
-        ],
-    SecurityGroupEgress=[
-        ec2.SecurityGroupRule(
-            IpProtocol='-1',
-            FromPort='-1',
-            ToPort='-1',
-            CidrIp='0.0.0.0/0',
-            ),
-        ],
-    Tags=Tags(Name='nat'),
-    VpcId=Ref(VPC),
-    ))
-
-NAT_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
-    'NATInstance',
-    ImageId=FindInMap('Region2AMI', Ref(AWS_REGION), 'AWSNAT'),
-    InstanceType=Ref(NAT_INSTANCE_TYPE),
-    KeyName=Ref(KEY_NAME),
-    SecurityGroupIds=[Ref(NAT_SECURITY_GROUP)],
-    SourceDestCheck=False,
-    SubnetId=Ref(PUBLIC_SUBNET),
-    Tags=Tags(Name='NAT'),
-    ))
-
-TEMPLATE.add_resource(ec2.EIP(
+NAT_EIP = TEMPLATE.add_resource(ec2.EIP(
     'NATEIP',
     DependsOn=ATTACH_GATEWAY.title,
     Domain='vpc',
-    InstanceId=Ref(NAT_INSTANCE),
     ))
 
-# }}}nat-instance
+NAT_GATEWAY = TEMPLATE.add_resource(ec2.NatGateway(
+    'NATGateway',
+    AllocationId=GetAtt(NAT_EIP, 'AllocationId'),
+    SubnetId=Ref(PUBLIC_SUBNET),
+    ))
+
+# }}}nat-gateway
 
 # {{{private-route-table
 
@@ -275,7 +245,7 @@ TEMPLATE.add_resource(ec2.Route(
     'PrivateRoute',
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     DestinationCidrBlock='0.0.0.0/0',
-    InstanceId=Ref(NAT_INSTANCE),
+    NatGatewayId=Ref(NAT_GATEWAY),
     ))
 
 # }}}private-route-table
@@ -289,7 +259,7 @@ KEY_NAME_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitCondit
 KEY_NAME_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
     'KeyNameWaitCondition',
     Handle=Ref(KEY_NAME_WAIT_CONDITION_HANDLE),
-    Timeout='600',
+    Timeout='900',
     ))
 
 # }}}key-name
@@ -403,14 +373,6 @@ BOSH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
     Tags=Tags(Name='BOSH subnet'),
     ))
 
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=BOSH_SUBNET.CidrBlock,
-        ))
-
 TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     'BOSHSubnetRouteTableAssociation',
     SubnetId=Ref(BOSH_SUBNET),
@@ -523,7 +485,7 @@ CF_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
     VpcId=Ref(VPC),
     CidrBlock='10.0.2.0/24',
     AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='cf'),
+    Tags=Tags(Name='cf subnet'),
     ))
 
 TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
@@ -531,14 +493,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     SubnetId=Ref(CF_SUBNET),
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
-
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=CF_SUBNET.CidrBlock,
-        ))
 
 CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'cfPublicSecurityGroup',
@@ -572,6 +526,29 @@ CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
             ),
         ],
     Tags=Tags(Name='cf-public'),
+    VpcId=Ref(VPC),
+    ))
+
+DOCKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
+    'DockerSecurityGroup',
+    GroupDescription='docker',
+    SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='tcp',
+            FromPort='32768',
+            ToPort='61000',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
+    SecurityGroupEgress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='-1',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
+    Tags=Tags(Name='docker'),
     VpcId=Ref(VPC),
     ))
 
@@ -628,14 +605,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
 
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=DOCKER_SUBNET.CidrBlock,
-        ))
-
 DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'dockerBrokerPublicSecurityGroup',
     GroupDescription='cf-public',
@@ -675,7 +644,6 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'cf_password=', Ref(CF_PASSWORD), '\n',
     'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n',
     'cf_runner_z1_instances=', Ref(CF_RUNNER_Z1_INSTANCES), '\n',
-    'cf_elastic_ip=', Ref(CF_ELASTIC_IP), '\n',
     'cf_runner_z1_instance_type=', Ref(CF_RUNNER_Z1_INSTANCE_TYPE), '\n',
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
@@ -727,14 +695,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
 
-NAT_SECURITY_GROUP.SecurityGroupIngress.append(
-    ec2.SecurityGroupRule(
-        IpProtocol='-1',
-        FromPort='-1',
-        ToPort='-1',
-        CidrIp=CLOUDERA_SUBNET.CidrBlock,
-        ))
-
 CLOUDERA_ROLE = TEMPLATE.add_resource(iam.Role(
     'ClouderaRole',
     AssumeRolePolicyDocument=awacs.aws.Policy(
@@ -750,7 +710,7 @@ CLOUDERA_ROLE = TEMPLATE.add_resource(iam.Role(
 
 CLOUDERA_POLICY = TEMPLATE.add_resource(iam.PolicyType(
     'ClouderaPolicy',
-    PolicyName='jump-box',
+    PolicyName='cloudera',
     PolicyDocument=awacs.aws.Policy(
         Statement=[
             awacs.aws.Statement(
@@ -962,6 +922,127 @@ CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScali
     ))
 
 # }}}cloudera
+
+# {{{nginx
+
+NGINX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
+    'NginxSecurityGroup',
+    GroupDescription='jump box security group',
+    SecurityGroupIngress=[],
+    SecurityGroupEgress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='-1',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
+    VpcId=Ref(VPC),
+    ))
+
+NGINX_SECURITY_GROUP.SecurityGroupIngress.extend([
+    ec2.SecurityGroupRule(
+        IpProtocol='tcp',
+        FromPort='22',
+        ToPort='22',
+        SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+        ),
+    ])
+
+BOSH_SECURITY_GROUP.SecurityGroupIngress.extend([
+    ec2.SecurityGroupRule(
+        IpProtocol='tcp',
+        FromPort='80',
+        ToPort='80',
+        SourceSecurityGroupId=Ref(NGINX_SECURITY_GROUP),
+        ),
+    ])
+
+NGINX_ROLE = TEMPLATE.add_resource(iam.Role(
+    'NginxRole',
+    AssumeRolePolicyDocument=awacs.aws.Policy(
+        Statement=[
+            awacs.aws.Statement(
+                Effect=awacs.aws.Allow,
+                Action=[awacs.sts.AssumeRole],
+                Principal=awacs.aws.Principal('Service', ['ec2.amazonaws.com']),
+                ),
+            ],
+        ),
+    ))
+
+NGINX_POLICY = TEMPLATE.add_resource(iam.PolicyType(
+    'NginxPolicy',
+    PolicyName='nginx',
+    PolicyDocument=awacs.aws.Policy(
+        Statement=[
+            awacs.aws.Statement(
+                Effect=awacs.aws.Allow,
+                Action=[awacs.ec2.DescribeInstances],
+                Resource=['*'],
+                ),
+            ],
+        ),
+    Roles=[Ref(NGINX_ROLE)],
+    ))
+
+NGINX_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
+    'NginxInstanceProfile',
+    Roles=[Ref(NGINX_ROLE)],
+    ))
+
+NGINX_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'NginxInstanceType',
+    Type=STRING,
+    Default=C4_LARGE,
+    AllowedValues=[M3_MEDIUM, M4_LARGE, C4_LARGE, C4_XLARGE, C4_2XLARGE],
+    ))
+
+NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
+    'NginxInstance',
+    BlockDeviceMappings=[
+        ec2.BlockDeviceMapping(
+            DeviceName='/dev/sda1',
+            Ebs=ec2.EBSBlockDevice(
+                VolumeSize='30',
+                )
+            ),
+        ],
+    DependsOn=KEY_NAME_WAIT_CONDITION.title,
+    DisableApiTermination=Ref(TERMINATION_PROTECTION_ENABLED),
+    IamInstanceProfile=Ref(NGINX_INSTANCE_PROFILE),
+    ImageId=UBUNTU_AMI,
+    InstanceType=Ref(NGINX_INSTANCE_TYPE),
+    KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
+    SecurityGroupIds=[Ref(CF_PUBLIC_SECURITY_GROUP), Ref(NGINX_SECURITY_GROUP), 
+        Ref(DOCKER_SECURITY_GROUP)],
+    SubnetId=Ref(PUBLIC_SUBNET),
+    Tags=Tags(Name='Nginx'),
+    ))
+
+NGINX_EIP = TEMPLATE.add_resource(ec2.EIPAssociation(
+    'NginxEipAssociation',
+    EIP=Ref(CF_ELASTIC_IP),
+    InstanceId=Ref(NGINX_INSTANCE),
+    ))
+
+NGINX_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
+    'NginxWaitHandle',
+    ))
+
+NGINX_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
+    'NginxWaitCondition',
+    Handle=Ref(NGINX_WAIT_CONDITION_HANDLE),
+    Timeout='900',
+    ))
+
+user_data(NGINX_INSTANCE)
+metadata(NGINX_INSTANCE, 'nginx', [
+    'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n'
+    'nginx_wait_condition_handle=', Ref(NGINX_WAIT_CONDITION_HANDLE), '\n',
+    ])
+
+# }}}nginx
 
 print TEMPLATE.to_json()
 
