@@ -582,6 +582,37 @@ CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     AllowedValues=[C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
     ))
 
+SMTP_HOST = TEMPLATE.add_parameter(Parameter(
+    'SMTPHost',
+    Type=STRING,
+    ))
+
+SMTP_SENDER_USER = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderUser',
+    Type=STRING,
+    ))
+
+SMTP_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'SMTPPassword',
+    Type=STRING,
+    NoEcho=True,
+    ))
+
+SMTP_PORT = TEMPLATE.add_parameter(Parameter(
+    'SMTPPort',
+    Type=NUMBER,
+    ))
+
+SMTP_SENDER_EMAIL = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderEmail',
+    Type=STRING,
+    ))
+
+SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderName',
+    Type=STRING,
+    ))
+
 TEMPLATE.add_output(Output(
     'cfAPIURL',
     Value=Join('', ['https://api.', Ref(CF_SYSTEM_DOMAIN)]),
@@ -645,6 +676,12 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n',
     'cf_runner_z1_instances=', Ref(CF_RUNNER_Z1_INSTANCES), '\n',
     'cf_runner_z1_instance_type=', Ref(CF_RUNNER_Z1_INSTANCE_TYPE), '\n',
+    'cf_smtp_host=', Ref(SMTP_HOST), '\n',
+    'cf_smtp_sender_user=', Ref(SMTP_SENDER_USER), '\n',
+    'cf_smtp_password=', Ref(SMTP_PASSWORD), '\n',
+    'cf_smtp_port=', Ref(SMTP_PORT), '\n',
+    'cf_smtp_sender_email=', Ref(SMTP_SENDER_EMAIL), '\n',
+    'cf_smtp_sender_name=', Ref(SMTP_SENDER_NAME), '\n',
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
     ])
