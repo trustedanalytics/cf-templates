@@ -566,7 +566,7 @@ CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
 CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
     'cfRunnerZ1Instances',
     Type=NUMBER,
-    Default='1',
+    Default='2',
     MinValue='1',
     ))
 
@@ -578,8 +578,8 @@ CF_ELASTIC_IP = TEMPLATE.add_parameter(Parameter(
 CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'cfRunnerZ1InstanceType',
     Type=STRING,
-    Default=C3_LARGE,
-    AllowedValues=[C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    Default=M3_XLARGE,
+    AllowedValues=[M3_XLARGE, C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
     ))
 
 SMTP_HOST = TEMPLATE.add_parameter(Parameter(
