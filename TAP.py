@@ -661,6 +661,24 @@ DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
 
 # }}}docker
 
+# {{{kubernetes
+
+KUBERNETES_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+    'KubernetesSubnet',
+    VpcId=Ref(VPC),
+    CidrBlock='10.0.6.0/24',
+    AvailabilityZone=Select(0, GetAZs()),
+    Tags=Tags(Name='Kubernetes subnet'),
+    ))
+
+TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+    'KubernetesSubnetRouteTableAssociation',
+    SubnetId=Ref(KUBERNETES_SUBNET),
+    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+    ))
+
+# }}}kubernetes
+
 user_data(JUMP_BOX_INSTANCE)
 metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'key_name=', Join('-', [Ref(AWS_STACK_NAME), 'key']), '\n',
