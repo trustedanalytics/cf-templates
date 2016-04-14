@@ -35,6 +35,8 @@ ANSIBLE_PULL_URL = os.getenv('ANSIBLE_PULL_URL',
 
 ANSIBLE_PULL_CHECKOUT = os.getenv('ANSIBLE_PULL_CHECKOUT', 'master')
 
+ASK_FOR_QUAY_CREDENTIALS = os.getenv('ASK_FOR_QUAY_CREDENTIALS', 'False').lower() in ['yes', 'true', 'y', 't', '1']
+
 ANSIBLE_GROUP_VARS = [
     'ntp_server=[\'0.amazon.pool.ntp.org\', \'1.amazon.pool.ntp.org\']\n',
     ]
@@ -114,7 +116,7 @@ def metadata(resource, ansible_group_name, ansible_group_vars=None):
                             'triggers=post.update\n',
                             'path=Resources.{0}.Metadata\n'.format(resource.title),
                             'action=cfn-init -s ', Ref(AWS_STACK_NAME),
-                            ' -r {0} --region ', Ref(AWS_REGION), '\n'.format(resource.title),
+                            ' -r {0} --region '.format(resource.title), Ref(AWS_REGION), '\n',
                             'runas=root\n',
                             '\n',
                             '[ansible-pull]\n',
@@ -326,6 +328,7 @@ JUMP_BOX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
             CidrIp='0.0.0.0/0',
             ),
         ],
+    Tags=Tags(Name='jumpbox'),
     VpcId=Ref(VPC),
     ))
 
@@ -529,29 +532,6 @@ CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-DOCKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
-    'DockerSecurityGroup',
-    GroupDescription='docker',
-    SecurityGroupIngress=[
-        ec2.SecurityGroupRule(
-            IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            CidrIp='0.0.0.0/0',
-            ),
-        ],
-    SecurityGroupEgress=[
-        ec2.SecurityGroupRule(
-            IpProtocol='-1',
-            FromPort='-1',
-            ToPort='-1',
-            CidrIp='0.0.0.0/0',
-            ),
-        ],
-    Tags=Tags(Name='docker'),
-    VpcId=Ref(VPC),
-    ))
-
 CF_PASSWORD = TEMPLATE.add_parameter(Parameter(
     'cfPassword',
     NoEcho=True,
@@ -578,8 +558,13 @@ CF_ELASTIC_IP = TEMPLATE.add_parameter(Parameter(
 CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'cfRunnerZ1InstanceType',
     Type=STRING,
-    Default=M3_XLARGE,
-    AllowedValues=[M3_XLARGE, C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    Default=R3_XLARGE,
+    AllowedValues=[
+        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
+        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
+        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE
+        ],
     ))
 
 SMTP_HOST = TEMPLATE.add_parameter(Parameter(
@@ -613,53 +598,24 @@ SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
     Type=STRING,
     ))
 
+if ASK_FOR_QUAY_CREDENTIALS == True:
+    QUAY_USERNAME = TEMPLATE.add_parameter(Parameter(
+        'quayUsername',
+        Type=STRING,
+        ))
+
+    QUAY_PASSWORD = TEMPLATE.add_parameter(Parameter(
+        'quayPassword',
+        Type=STRING,
+        NoEcho=True,
+        ))
+
 TEMPLATE.add_output(Output(
     'cfAPIURL',
     Value=Join('', ['https://api.', Ref(CF_SYSTEM_DOMAIN)]),
     ))
 
 # }}}cf
-
-# {{{docker
-
-DOCKER_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'dockerSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.4.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='docker subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'dockerSubnetRouteTableAssociation',
-    SubnetId=Ref(DOCKER_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
-
-DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
-    'dockerBrokerPublicSecurityGroup',
-    GroupDescription='cf-public',
-    SecurityGroupIngress=[
-        ec2.SecurityGroupRule(
-            IpProtocol='-1',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
-            ),
-        ],
-    SecurityGroupEgress=[
-        ec2.SecurityGroupRule(
-            IpProtocol='-1',
-            FromPort='-1',
-            ToPort='-1',
-            CidrIp='0.0.0.0/0',
-            ),
-        ],
-    Tags=Tags(Name='docker-broker'),
-    VpcId=Ref(VPC),
-    ))
-
-# }}}docker
 
 # {{{kubernetes
 
@@ -678,31 +634,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     ))
 
 # }}}kubernetes
-
-user_data(JUMP_BOX_INSTANCE)
-metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
-    'key_name=', Join('-', [Ref(AWS_STACK_NAME), 'key']), '\n',
-    'key_name_wait_condition_handle=', Ref(KEY_NAME_WAIT_CONDITION_HANDLE), '\n',
-    'bosh_subnet_id=', Ref(BOSH_SUBNET), '\n',
-    'bosh_dns=[\'169.254.169.253\']\n',
-    'bosh_default_security_groups=[\'', Ref(BOSH_SECURITY_GROUP), '\']\n',
-    'bosh_iam_instance_profile=', Ref(BOSH_DIRECTOR_INSTANCE_PROFILE), '\n',
-    'cf_private_subnet_id=', Ref(CF_SUBNET), '\n',
-    'cf_public_subnet_id=', Ref(PUBLIC_SUBNET), '\n',
-    'cf_public_security_group=', Ref(CF_PUBLIC_SECURITY_GROUP), '\n',
-    'cf_password=', Ref(CF_PASSWORD), '\n',
-    'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n',
-    'cf_runner_z1_instances=', Ref(CF_RUNNER_Z1_INSTANCES), '\n',
-    'cf_runner_z1_instance_type=', Ref(CF_RUNNER_Z1_INSTANCE_TYPE), '\n',
-    'cf_smtp_host=', Ref(SMTP_HOST), '\n',
-    'cf_smtp_sender_user=', Ref(SMTP_SENDER_USER), '\n',
-    'cf_smtp_password=', Ref(SMTP_PASSWORD), '\n',
-    'cf_smtp_port=', Ref(SMTP_PORT), '\n',
-    'cf_smtp_sender_email=', Ref(SMTP_SENDER_EMAIL), '\n',
-    'cf_smtp_sender_name=', Ref(SMTP_SENDER_NAME), '\n',
-    'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
-    'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
-    ])
 
 # {{{consul
 
@@ -808,6 +739,7 @@ CLOUDERA_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
             CidrIp='0.0.0.0/0',
             ),
         ],
+    Tags=Tags(Name='cloudera'),
     VpcId=Ref(VPC),
     ))
 
@@ -824,7 +756,7 @@ CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'ClouderaMasterInstanceType',
     Type=STRING,
     Default=M3_XLARGE,
-    AllowedValues=[M3_XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    AllowedValues=[M3_XLARGE, M3_2XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE, R3_8XLARGE],
     ))
 
 CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
@@ -922,7 +854,7 @@ CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'ClouderaWorkerInstanceType',
     Type=STRING,
     Default=M3_XLARGE,
-    AllowedValues=[M3_XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE],
+    AllowedValues=[M3_XLARGE, M3_2XLARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE, R3_8XLARGE],
     ))
 
 CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
@@ -978,11 +910,88 @@ CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScali
 
 # }}}cloudera
 
+# {{{docker
+
+DOCKER_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+    'dockerSubnet',
+    VpcId=Ref(VPC),
+    CidrBlock='10.0.4.0/24',
+    AvailabilityZone=Select(0, GetAZs()),
+    Tags=Tags(Name='docker subnet'),
+    ))
+
+TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+    'dockerSubnetRouteTableAssociation',
+    SubnetId=Ref(DOCKER_SUBNET),
+    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+    ))
+
+DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
+    'dockerBrokerPublicSecurityGroup',
+    GroupDescription='cf-public',
+    SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='tcp',
+            FromPort='32768',
+            ToPort='61000',
+            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
+            ),
+        ec2.SecurityGroupRule(
+            IpProtocol='udp',
+            FromPort='32768',
+            ToPort='61000',
+            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
+            ),
+        ec2.SecurityGroupRule(
+            IpProtocol='tcp',
+            FromPort='32768',
+            ToPort='61000',
+            SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
+            ),
+        ec2.SecurityGroupRule(
+            IpProtocol='udp',
+            FromPort='32768',
+            ToPort='61000',
+            SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
+            ),
+        ec2.SecurityGroupRule(
+            IpProtocol='tcp',
+            FromPort='32768',
+            ToPort='61000',
+            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+            ),
+        ec2.SecurityGroupRule(
+            IpProtocol='udp',
+            FromPort='32768',
+            ToPort='61000',
+            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+            ),
+        ec2.SecurityGroupRule(
+            IpProtocol='tcp',
+            FromPort='4243',
+            ToPort='4243',
+            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+            ),
+        ],
+    SecurityGroupEgress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='-1',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
+    Tags=Tags(Name='docker-broker'),
+    VpcId=Ref(VPC),
+    ))
+
+# }}}docker
+
 # {{{nginx
 
 NGINX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'NginxSecurityGroup',
-    GroupDescription='jump box security group',
+    GroupDescription='nginx security group',
     SecurityGroupIngress=[],
     SecurityGroupEgress=[
         ec2.SecurityGroupRule(
@@ -992,6 +1001,7 @@ NGINX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
             CidrIp='0.0.0.0/0',
             ),
         ],
+    Tags=Tags(Name='nginx'),
     VpcId=Ref(VPC),
     ))
 
@@ -1070,7 +1080,7 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     InstanceType=Ref(NGINX_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroupIds=[Ref(CF_PUBLIC_SECURITY_GROUP), Ref(NGINX_SECURITY_GROUP), 
-        Ref(DOCKER_SECURITY_GROUP)],
+        Ref(DOCKER_BROKER_SECURITY_GROUP)],
     SubnetId=Ref(PUBLIC_SUBNET),
     Tags=Tags(Name='Nginx'),
     ))
@@ -1098,6 +1108,33 @@ metadata(NGINX_INSTANCE, 'nginx', [
     ])
 
 # }}}nginx
+
+user_data(JUMP_BOX_INSTANCE)
+metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
+    'key_name=', Join('-', [Ref(AWS_STACK_NAME), 'key']), '\n',
+    'key_name_wait_condition_handle=', Ref(KEY_NAME_WAIT_CONDITION_HANDLE), '\n',
+    'bosh_subnet_id=', Ref(BOSH_SUBNET), '\n',
+    'bosh_dns=[\'169.254.169.253\']\n',
+    'bosh_default_security_groups=[\'', Ref(BOSH_SECURITY_GROUP), '\']\n',
+    'bosh_iam_instance_profile=', Ref(BOSH_DIRECTOR_INSTANCE_PROFILE), '\n',
+    'cf_private_subnet_id=', Ref(CF_SUBNET), '\n',
+    'cf_public_subnet_id=', Ref(PUBLIC_SUBNET), '\n',
+    'cf_public_security_group=', Ref(CF_PUBLIC_SECURITY_GROUP), '\n',
+    'cf_password=', Ref(CF_PASSWORD), '\n',
+    'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n',
+    'cf_runner_z1_instances=', Ref(CF_RUNNER_Z1_INSTANCES), '\n',
+    'cf_runner_z1_instance_type=', Ref(CF_RUNNER_Z1_INSTANCE_TYPE), '\n',
+    'cf_smtp_host=', Ref(SMTP_HOST), '\n',
+    'cf_smtp_sender_user=', Ref(SMTP_SENDER_USER), '\n',
+    'cf_smtp_password=', Ref(SMTP_PASSWORD), '\n',
+    'cf_smtp_port=', Ref(SMTP_PORT), '\n',
+    'cf_smtp_sender_email=', Ref(SMTP_SENDER_EMAIL), '\n',
+    'cf_smtp_sender_name=', Ref(SMTP_SENDER_NAME), '\n',
+    'quay_username=', Ref(QUAY_USERNAME) if ASK_FOR_QUAY_CREDENTIALS == True else '""', '\n',
+    'quay_password=', Ref(QUAY_PASSWORD) if ASK_FOR_QUAY_CREDENTIALS == True else '""', '\n',
+    'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
+    'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
+    ])
 
 print TEMPLATE.to_json()
 
