@@ -1045,7 +1045,7 @@ NGINX_POLICY = TEMPLATE.add_resource(iam.PolicyType(
         Statement=[
             awacs.aws.Statement(
                 Effect=awacs.aws.Allow,
-                Action=[awacs.ec2.DescribeInstances],
+                Action=[awacs.ec2.DescribeInstances, awacs.ec2.DescribeSubnets],
                 Resource=['*'],
                 ),
             ],
@@ -1115,6 +1115,9 @@ NGINX_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
 user_data(NGINX_INSTANCE)
 metadata(NGINX_INSTANCE, 'nginx', [
     'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n'
+    'docker_registry_password=', Ref(CF_PASSWORD), '\n',
+    'cf_private_subnet_id=', Ref(CF_PRIVATE_SUBNET), '\n',
+    'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'nginx_wait_condition_handle=', Ref(NGINX_WAIT_CONDITION_HANDLE), '\n',
     ])
 
