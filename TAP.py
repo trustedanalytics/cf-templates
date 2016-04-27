@@ -649,17 +649,48 @@ CONSUL_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-for interface, port in {'SerfLAN': 8301, 'SerfWAN': 8302, 'Server': 8300}.iteritems():
-    TEMPLATE.add_resource(ec2.SecurityGroupIngress(
-        'Consul{0}SecurityGroupIngress'.format(interface),
-        IpProtocol='tcp',
-        FromPort=str(port),
-        ToPort=str(port),
-        SourceSecurityGroupId=Ref(CONSUL_SECURITY_GROUP),
-        GroupId=Ref(CONSUL_SECURITY_GROUP),
-        ))
+for proto in ('tcp', 'udp'):
+    for interface, port in {'SerfLAN': 8301, 'SerfWAN': 8302, 'Server': 8300}.iteritems():
+        TEMPLATE.add_resource(ec2.SecurityGroupIngress(
+            'Consul{0}{1}SecurityGroupIngress'.format(interface, proto),
+            IpProtocol=proto,
+            FromPort=str(port),
+            ToPort=str(port),
+            SourceSecurityGroupId=Ref(CONSUL_SECURITY_GROUP),
+            GroupId=Ref(CONSUL_SECURITY_GROUP),
+            ))
 
 # }}}consul
+
+# {{{dns
+
+DNS_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
+    'DNSSecurityGroup',
+    GroupDescription='DNS security group',
+    SecurityGroupIngress=[
+        ],
+    SecurityGroupEgress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='-1',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
+    VpcId=Ref(VPC),
+    ))
+
+for proto in ('tcp', 'udp'):
+    TEMPLATE.add_resource(ec2.SecurityGroupIngress(
+        'DNS{0}SecurityGroupIngress'.format(proto),
+        IpProtocol=proto,
+        FromPort='53',
+        ToPort='53',
+        CidrIp=VPC.properties['CidrBlock'],
+        GroupId=Ref(DNS_SECURITY_GROUP),
+        ))
+
+# }}}dns
 
 # {{{cloudera
 
@@ -790,7 +821,8 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     ImageId=RHEL_AMI,
     InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
-    SecurityGroupIds=[Ref(CLOUDERA_SECURITY_GROUP)],
+    SecurityGroupIds=[Ref(CLOUDERA_SECURITY_GROUP), Ref(DNS_SECURITY_GROUP), 
+        Ref(CONSUL_SECURITY_GROUP)],
     SubnetId=Ref(CLOUDERA_SUBNET),
     Tags=Tags(Name='Cloudera Manager'),
     ))
@@ -831,7 +863,8 @@ CLOUDERA_MASTER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchC
     ImageId=RHEL_AMI,
     InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
-    SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP)],
+    SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP), Ref(DNS_SECURITY_GROUP), 
+        Ref(CONSUL_SECURITY_GROUP)],
     ))
 
 CLOUDERA_MASTER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScalingGroup(
@@ -1090,6 +1123,7 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     SecurityGroupIds=[
         Ref(CF_PUBLIC_SECURITY_GROUP),
         Ref(NGINX_SECURITY_GROUP),
+        Ref(CONSUL_SECURITY_GROUP),
         Ref(DOCKER_BROKER_SECURITY_GROUP)
         ],
     SubnetId=Ref(PUBLIC_SUBNET),
