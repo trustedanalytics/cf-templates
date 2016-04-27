@@ -1049,6 +1049,15 @@ NGINX_SECURITY_GROUP.SecurityGroupIngress.extend([
         ),
     ])
 
+DOCKER_BROKER_SECURITY_GROUP.SecurityGroupIngress.extend([
+    ec2.SecurityGroupRule(
+        IpProtocol='tcp',
+        FromPort='5000',
+        ToPort='5000',
+        SourceSecurityGroupId=Ref(NGINX_SECURITY_GROUP),
+        ),
+    ])
+
 BOSH_SECURITY_GROUP.SecurityGroupIngress.extend([
     ec2.SecurityGroupRule(
         IpProtocol='tcp',
