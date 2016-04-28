@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring,too-many-lines
 # Copyright (c) 2015 Intel Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -161,7 +161,7 @@ def user_data(resource):
         'pip install ',
         'https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n',
         '\n',
-        'cfn-init -s ', Ref(AWS_STACK_NAME), ' -r {} --region '.format(resource.title),
+        'cfn-init -s ', Ref(AWS_STACK_NAME), ' -r {0} --region '.format(resource.title),
         Ref(AWS_REGION), '\n'
         ]))
 
@@ -249,20 +249,6 @@ TEMPLATE.add_resource(ec2.Route(
     ))
 
 # }}}private-route-table
-
-# {{{key-name
-
-KEY_NAME_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
-    'KeyNameWaitHandle',
-    ))
-
-KEY_NAME_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
-    'KeyNameWaitCondition',
-    Handle=Ref(KEY_NAME_WAIT_CONDITION_HANDLE),
-    Timeout='900',
-    ))
-
-# }}}key-name
 
 TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
     'TerminationProtectionEnabled',
@@ -362,6 +348,21 @@ TEMPLATE.add_output(Output(
     ))
 
 # }}}jump-box
+
+# {{{key-name
+
+KEY_NAME_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
+    'KeyNameWaitConditionHandle',
+    ))
+
+KEY_NAME_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
+    'KeyNameWaitCondition',
+    DependsOn=JUMP_BOX_INSTANCE.title,
+    Handle=Ref(KEY_NAME_WAIT_CONDITION_HANDLE),
+    Timeout='900',
+    ))
+
+# }}}key-name
 
 # {{{bosh
 
@@ -475,6 +476,17 @@ JUMP_BOX_POLICY.PolicyDocument.Statement.append(awacs.aws.Statement(
     Resource=[GetAtt(BOSH_DIRECTOR_ROLE, 'Arn')],
     ))
 
+BOSH_DIRECTOR_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
+    'BOSHDirectorWaitConditionHandle',
+    ))
+
+BOSH_DIRECTOR_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
+    'BOSHDirectorWaitCondition',
+    DependsOn=JUMP_BOX_INSTANCE.title,
+    Handle=Ref(BOSH_DIRECTOR_WAIT_CONDITION_HANDLE),
+    Timeout='3600',
+    ))
+
 # }}}bosh
 
 # {{{cf
@@ -546,11 +558,6 @@ CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
     MinValue='1',
     ))
 
-NGINX_EIP = TEMPLATE.add_parameter(Parameter(
-    'NGINXEIP',
-    Type=STRING,
-    ))
-
 CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'CFRunnerZ1InstanceType',
     Type=STRING,
@@ -563,6 +570,26 @@ CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
         R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
         ],
     ))
+
+CF_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
+    'CFWaitConditionHandle',
+    ))
+
+CF_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
+    'CFWaitCondition',
+    DependsOn=JUMP_BOX_INSTANCE.title,
+    Handle=Ref(CF_WAIT_CONDITION_HANDLE),
+    Timeout='7200',
+    ))
+
+TEMPLATE.add_output(Output(
+    'CFAPIURL',
+    Value=Join('', ['https://api.', Ref(CF_SYSTEM_DOMAIN)]),
+    ))
+
+# }}}cf
+
+# {{{smtp
 
 SMTP_HOST = TEMPLATE.add_parameter(Parameter(
     'SMTPHost',
@@ -595,6 +622,10 @@ SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
     Type=STRING,
     ))
 
+# }}}smtp
+
+# {{{quay
+
 QUAY_IO_USERNAME = TEMPLATE.add_parameter(Parameter(
     'QuayIoUsername',
     Type=STRING,
@@ -606,12 +637,7 @@ QUAY_IO_PASSWORD = TEMPLATE.add_parameter(Parameter(
     NoEcho=True,
     ))
 
-TEMPLATE.add_output(Output(
-    'CFAPIURL',
-    Value=Join('', ['https://api.', Ref(CF_SYSTEM_DOMAIN)]),
-    ))
-
-# }}}cf
+# }}}quay
 
 # {{{kubernetes
 
@@ -649,11 +675,11 @@ CONSUL_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-for proto in ('tcp', 'udp'):
+for protocol in ('tcp', 'udp'):
     for interface, port in {'SerfLAN': 8301, 'SerfWAN': 8302, 'Server': 8300}.iteritems():
         TEMPLATE.add_resource(ec2.SecurityGroupIngress(
-            'Consul{0}{1}SecurityGroupIngress'.format(interface, proto),
-            IpProtocol=proto,
+            'Consul{0}{1}SecurityGroupIngress'.format(interface, protocol.upper()),
+            IpProtocol=protocol,
             FromPort=str(port),
             ToPort=str(port),
             SourceSecurityGroupId=Ref(CONSUL_SECURITY_GROUP),
@@ -680,13 +706,13 @@ DNS_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-for proto in ('tcp', 'udp'):
+for protocol in ('tcp', 'udp'):
     TEMPLATE.add_resource(ec2.SecurityGroupIngress(
-        'DNS{0}SecurityGroupIngress'.format(proto),
-        IpProtocol=proto,
+        'DNS{0}SecurityGroupIngress'.format(protocol.upper()),
+        IpProtocol=protocol,
         FromPort='53',
         ToPort='53',
-        CidrIp=VPC.properties['CidrBlock'],
+        CidrIp=GetAtt(VPC, 'CidrBlock'),
         GroupId=Ref(DNS_SECURITY_GROUP),
         ))
 
@@ -821,8 +847,11 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     ImageId=RHEL_AMI,
     InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
-    SecurityGroupIds=[Ref(CLOUDERA_SECURITY_GROUP), Ref(DNS_SECURITY_GROUP), 
-        Ref(CONSUL_SECURITY_GROUP)],
+    SecurityGroupIds=[
+        Ref(CLOUDERA_SECURITY_GROUP),
+        Ref(CONSUL_SECURITY_GROUP),
+        Ref(DNS_SECURITY_GROUP),
+        ],
     SubnetId=Ref(CLOUDERA_SUBNET),
     Tags=Tags(Name='Cloudera Manager'),
     ))
@@ -863,8 +892,11 @@ CLOUDERA_MASTER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchC
     ImageId=RHEL_AMI,
     InstanceType=Ref(CLOUDERA_MASTER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
-    SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP), Ref(DNS_SECURITY_GROUP), 
-        Ref(CONSUL_SECURITY_GROUP)],
+    SecurityGroups=[
+        Ref(CLOUDERA_SECURITY_GROUP),
+        Ref(CONSUL_SECURITY_GROUP),
+        Ref(DNS_SECURITY_GROUP),
+        ],
     ))
 
 CLOUDERA_MASTER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScalingGroup(
@@ -946,14 +978,14 @@ CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScali
 
 # }}}cloudera
 
-# {{{docker
+# {{{docker-broker
 
 DOCKER_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
     'DockerSubnet',
     VpcId=Ref(VPC),
     CidrBlock='10.0.4.0/24',
     AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Docker subnet'),
+    Tags=Tags(Name='Docker Broker subnet'),
     ))
 
 TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
@@ -1021,7 +1053,18 @@ DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-# }}}docker
+DOCKER_BROKER_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
+    'DockerBrokerWaitConditionHandle',
+    ))
+
+DOCKER_BROKER_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
+    'DockerBrokerWaitCondition',
+    DependsOn=JUMP_BOX_INSTANCE.title,
+    Handle=Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE),
+    Timeout='7200',
+    ))
+
+# }}}docker-broker
 
 # {{{nginx
 
@@ -1130,13 +1173,18 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     InstanceType=Ref(NGINX_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroupIds=[
-        Ref(CF_PUBLIC_SECURITY_GROUP),
         Ref(NGINX_SECURITY_GROUP),
         Ref(CONSUL_SECURITY_GROUP),
-        Ref(DOCKER_BROKER_SECURITY_GROUP)
+        Ref(CF_PUBLIC_SECURITY_GROUP),
+        Ref(DOCKER_BROKER_SECURITY_GROUP),
         ],
     SubnetId=Ref(PUBLIC_SUBNET),
     Tags=Tags(Name='NGINX'),
+    ))
+
+NGINX_EIP = TEMPLATE.add_parameter(Parameter(
+    'NGINXEIP',
+    Type=STRING,
     ))
 
 NGINX_EIP_ASSOCIATION = TEMPLATE.add_resource(ec2.EIPAssociation(
@@ -1146,23 +1194,15 @@ NGINX_EIP_ASSOCIATION = TEMPLATE.add_resource(ec2.EIPAssociation(
     ))
 
 NGINX_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
-    'NGINXWaitHandle',
+    'NGINXWaitConditionHandle',
     ))
 
 NGINX_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
     'NGINXWaitCondition',
+    DependsOn=NGINX_INSTANCE.title,
     Handle=Ref(NGINX_WAIT_CONDITION_HANDLE),
     Timeout='900',
     ))
-
-user_data(NGINX_INSTANCE)
-metadata(NGINX_INSTANCE, 'nginx', [
-    'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n'
-    'docker_registry_password=', Ref(CF_PASSWORD), '\n',
-    'cf_private_subnet_id=', Ref(CF_PRIVATE_SUBNET), '\n',
-    'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
-    'nginx_wait_condition_handle=', Ref(NGINX_WAIT_CONDITION_HANDLE), '\n',
-    ])
 
 # }}}nginx
 
@@ -1174,6 +1214,7 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'bosh_dns=[\'169.254.169.253\']\n',
     'bosh_default_security_groups=[\'', Ref(BOSH_SECURITY_GROUP), '\']\n',
     'bosh_iam_instance_profile=', Ref(BOSH_DIRECTOR_INSTANCE_PROFILE), '\n',
+    'bosh_director_wait_condition_handle=', Ref(BOSH_DIRECTOR_WAIT_CONDITION_HANDLE), '\n',
     'cf_private_subnet_id=', Ref(CF_PRIVATE_SUBNET), '\n',
     'cf_public_subnet_id=', Ref(PUBLIC_SUBNET), '\n',
     'cf_public_security_group=', Ref(CF_PUBLIC_SECURITY_GROUP), '\n',
@@ -1187,10 +1228,21 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'cf_smtp_port=', Ref(SMTP_PORT), '\n',
     'cf_smtp_sender_email=', Ref(SMTP_SENDER_EMAIL), '\n',
     'cf_smtp_sender_name=', Ref(SMTP_SENDER_NAME), '\n',
+    'cf_wait_condition_handle=', Ref(CF_WAIT_CONDITION_HANDLE), '\n',
     'quay_io_username=', Ref(QUAY_IO_USERNAME), '\n',
     'quay_io_password=', Ref(QUAY_IO_PASSWORD), '\n',
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
+    'docker_broker_wait_condition_handle=', Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE), '\n',
+    ])
+
+user_data(NGINX_INSTANCE)
+metadata(NGINX_INSTANCE, 'nginx', [
+    'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n'
+    'cf_private_subnet_id=', Ref(CF_PRIVATE_SUBNET), '\n',
+    'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
+    'docker_registry_password=', Ref(CF_PASSWORD), '\n',
+    'nginx_wait_condition_handle=', Ref(NGINX_WAIT_CONDITION_HANDLE), '\n',
     ])
 
 print TEMPLATE.to_json()
