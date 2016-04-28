@@ -1000,39 +1000,15 @@ DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     SecurityGroupIngress=[
         ec2.SecurityGroupRule(
             IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
+            FromPort='30000',
+            ToPort='60000',
+            CidrIp='0.0.0.0/0',
             ),
         ec2.SecurityGroupRule(
             IpProtocol='udp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='udp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='udp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+            FromPort='30000',
+            ToPort='60000',
+            CidrIp='0.0.0.0/0',
             ),
         ec2.SecurityGroupRule(
             IpProtocol='tcp',
