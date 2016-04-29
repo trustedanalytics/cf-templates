@@ -197,7 +197,7 @@ CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
     Description='The number of instances to launch.',
     Type=NUMBER,
     Default='3',
-    MinValue='1',
+    MinValue='3',
     ))
 
 # }}}parameters-cloudera
