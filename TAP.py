@@ -42,6 +42,7 @@ ANSIBLE_PULL_CHECKOUT = os.getenv('ANSIBLE_PULL_CHECKOUT', 'master')
 
 ANSIBLE_GROUP_VARS = [
     'ntp_server=[\'0.amazon.pool.ntp.org\', \'1.amazon.pool.ntp.org\']\n',
+    'provider=aws\n',
     ]
 
 TEMPLATE = Template()
