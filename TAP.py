@@ -58,6 +58,228 @@ TEMPLATE.add_mapping('Region2AMI', {
 UBUNTU_AMI = FindInMap('Region2AMI', Ref(AWS_REGION), 'Ubuntu')
 RHEL_AMI = FindInMap('Region2AMI', Ref(AWS_REGION), 'RHEL')
 
+# {{{parameters
+
+KEY_NAME = TEMPLATE.add_parameter(Parameter(
+    'KeyName',
+    Description='The EC2 Key Pair to allow SSH access to the jump box.',
+    Type=KEY_PAIR_NAME,
+    ConstraintDescription='must be the name of an existing EC2 KeyPair.',
+    ))
+
+TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
+    'TerminationProtectionEnabled',
+    Description='Termination protection for the jump box and Cloudera Manager instances.',
+    Type=STRING,
+    Default='true',
+    AllowedValues=['true', 'false'],
+    ))
+
+# {{{parameters-cloudfoundry
+
+CF_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'CFPassword',
+    Description='The password of administrator account.',
+    NoEcho=True,
+    Type=STRING,
+    ))
+
+CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
+    'CFSystemDomain',
+    Description='The domain that you configured to point to the Elastic IP address.',
+    Type=STRING,
+    ))
+
+CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
+    'CFRunnerZ1Instances',
+    Description='The number of instances to launch.',
+    Type=NUMBER,
+    Default='2',
+    MinValue='1',
+    ))
+
+CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'CFRunnerZ1InstanceType',
+    Description='The instance type for Droplet Execution Agents.',
+    Type=STRING,
+    Default=R3_XLARGE,
+    AllowedValues=[
+        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
+        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
+        C4_LARGE, C4_XLARGE, C4_2XLARGE, C4_4XLARGE, C4_8XLARGE,
+        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
+        ],
+    ))
+
+# }}}parameters-cloudfoundry
+
+# {{{parameters-smtp
+
+SMTP_HOST = TEMPLATE.add_parameter(Parameter(
+    'SMTPHost',
+    Type=STRING,
+    ))
+
+SMTP_SENDER_USER = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderUser',
+    Type=STRING,
+    ))
+
+SMTP_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'SMTPPassword',
+    Type=STRING,
+    NoEcho=True,
+    ))
+
+SMTP_PORT = TEMPLATE.add_parameter(Parameter(
+    'SMTPPort',
+    Type=NUMBER,
+    ))
+
+SMTP_SENDER_EMAIL = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderEmail',
+    Type=STRING,
+    ))
+
+SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderName',
+    Type=STRING,
+    ))
+
+# }}}parameters-smtp
+
+# {{{parameters-quay
+
+QUAY_IO_USERNAME = TEMPLATE.add_parameter(Parameter(
+    'QuayIoUsername',
+    Description='An optional username of the Quay.io robot account.',
+    Type=STRING,
+    ))
+
+QUAY_IO_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'QuayIoPassword',
+    Description='An optional password of the Quay.io robot account.',
+    Type=STRING,
+    NoEcho=True,
+    ))
+
+# }}}parameters-quay
+
+# {{{parameters-cloudera
+
+CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaMasterInstanceType',
+    Description='The instance type for Master nodes.',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[
+        M3_XLARGE, M3_2XLARGE,
+        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_8XLARGE,
+        ],
+    ))
+
+CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaWorkerInstanceType',
+    Description='The instance type for Worker nodes.',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[
+        M3_XLARGE, M3_2XLARGE,
+        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_8XLARGE,
+        ],
+    ))
+
+CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
+    'ClouderaWorkerCount',
+    Description='The number of instances to launch.',
+    Type=NUMBER,
+    Default='3',
+    MinValue='1',
+    ))
+
+# }}}parameters-cloudera
+
+# {{{parameters-nginx
+
+NGINX_EIP = TEMPLATE.add_parameter(Parameter(
+    'NGINXEIP',
+    Description='An existing Elastic IP address.',
+    Type=STRING,
+    MinLength='7',
+    MaxLength='15',
+    AllowedPattern='(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})',
+    ConstraintDescription='must be a valid IP address of the form x.x.x.x.',
+    ))
+
+# }}}parameters-nginx
+
+TEMPLATE.add_metadata({
+    'AWS::CloudFormation::Interface': {
+        'ParameterGroups': [
+            {
+                'Label': {'default': 'Configuration for Cloudera'},
+                'Parameters': [
+                    CLOUDERA_MASTER_INSTANCE_TYPE.title,
+                    CLOUDERA_WORKER_INSTANCE_TYPE.title,
+                    CLOUDERA_WORKER_COUNT.title,
+                    ],
+                },
+            {
+                'Label': {'default': 'Configuration for Cloud Foundry'},
+                'Parameters': [
+                    CF_PASSWORD.title,
+                    CF_SYSTEM_DOMAIN.title,
+                    CF_RUNNER_Z1_INSTANCES.title,
+                    CF_RUNNER_Z1_INSTANCE_TYPE.title,
+                    ],
+                },
+            {
+                'Label': {'default': 'Configuration for SMTP'},
+                'Parameters': [
+                    SMTP_HOST.title,
+                    SMTP_PORT.title,
+                    SMTP_SENDER_USER.title,
+                    SMTP_PASSWORD.title,
+                    SMTP_SENDER_NAME.title,
+                    SMTP_SENDER_EMAIL.title,
+                    ],
+                },
+            {
+                'Label': {'default': 'Credentials for Quay.io robot account'},
+                'Parameters': [
+                    QUAY_IO_USERNAME.title,
+                    QUAY_IO_PASSWORD.title,
+                    ],
+                },
+            ],
+        'ParameterLabels': {
+            KEY_NAME.title: {'default': 'Key pair name'},
+            TERMINATION_PROTECTION_ENABLED.title: {'default': 'Termination protection'},
+            CLOUDERA_MASTER_INSTANCE_TYPE.title: {'default': 'Instance type for masters'},
+            CLOUDERA_WORKER_INSTANCE_TYPE.title: {'default': 'Instance type for workers'},
+            CLOUDERA_WORKER_COUNT.title: {'default': 'Number of workers'},
+            CF_PASSWORD.title: {'default': 'Password'},
+            CF_SYSTEM_DOMAIN.title: {'default': 'System domain'},
+            CF_RUNNER_Z1_INSTANCES.title: {'default': 'Number of DEAs'},
+            CF_RUNNER_Z1_INSTANCE_TYPE.title: {'default': 'Instance type for DEA'},
+            SMTP_HOST.title: {'default': 'Server host address'},
+            SMTP_PORT.title: {'default': 'Server port'},
+            SMTP_SENDER_USER.title: {'default': 'Server username'},
+            SMTP_PASSWORD.title: {'default': 'Server password'},
+            SMTP_SENDER_NAME.title: {'default': 'From name'},
+            SMTP_SENDER_EMAIL.title: {'default': 'From email address'},
+            QUAY_IO_USERNAME.title: {'default': 'Username'},
+            QUAY_IO_PASSWORD.title: {'default': 'Password'},
+            NGINX_EIP.title: {'default': 'Elastic IP address for the load balancer'},
+            },
+        }
+    })
+
+# }}}parameters
+
 def metadata(resource, ansible_group_name, ansible_group_vars=None):
     ansible_hosts = [
         '[{0}]\n'.format(ansible_group_name),
@@ -72,7 +294,6 @@ def metadata(resource, ansible_group_name, ansible_group_vars=None):
         ansible_hosts.extend(ansible_group_vars)
 
     resource.Metadata = cloudformation.Metadata(
-        # pylint: disable=line-too-long
         cloudformation.Init({
             'config': cloudformation.InitConfig(
                 packages={
@@ -213,11 +434,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
 
 # }}}vpc-with-single-public-subnet
 
-KEY_NAME = TEMPLATE.add_parameter(Parameter(
-    'KeyName',
-    Type=KEY_PAIR_NAME,
-    ))
-
 # {{{nat-gateway
 
 NAT_EIP = TEMPLATE.add_resource(ec2.EIP(
@@ -249,13 +465,6 @@ TEMPLATE.add_resource(ec2.Route(
     ))
 
 # }}}private-route-table
-
-TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
-    'TerminationProtectionEnabled',
-    Type=STRING,
-    Default='true',
-    AllowedValues=['true', 'false'],
-    ))
 
 # {{{jump-box
 
@@ -540,37 +749,6 @@ CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-CF_PASSWORD = TEMPLATE.add_parameter(Parameter(
-    'CFPassword',
-    NoEcho=True,
-    Type=STRING,
-    ))
-
-CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
-    'CFSystemDomain',
-    Type=STRING,
-    ))
-
-CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
-    'CFRunnerZ1Instances',
-    Type=NUMBER,
-    Default='2',
-    MinValue='1',
-    ))
-
-CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'CFRunnerZ1InstanceType',
-    Type=STRING,
-    Default=R3_XLARGE,
-    AllowedValues=[
-        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
-        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
-        C4_LARGE, C4_XLARGE, C4_2XLARGE, C4_4XLARGE, C4_8XLARGE,
-        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
-        ],
-    ))
-
 CF_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
     'CFWaitConditionHandle',
     ))
@@ -588,56 +766,6 @@ TEMPLATE.add_output(Output(
     ))
 
 # }}}cf
-
-# {{{smtp
-
-SMTP_HOST = TEMPLATE.add_parameter(Parameter(
-    'SMTPHost',
-    Type=STRING,
-    ))
-
-SMTP_SENDER_USER = TEMPLATE.add_parameter(Parameter(
-    'SMTPSenderUser',
-    Type=STRING,
-    ))
-
-SMTP_PASSWORD = TEMPLATE.add_parameter(Parameter(
-    'SMTPPassword',
-    Type=STRING,
-    NoEcho=True,
-    ))
-
-SMTP_PORT = TEMPLATE.add_parameter(Parameter(
-    'SMTPPort',
-    Type=NUMBER,
-    ))
-
-SMTP_SENDER_EMAIL = TEMPLATE.add_parameter(Parameter(
-    'SMTPSenderEmail',
-    Type=STRING,
-    ))
-
-SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
-    'SMTPSenderName',
-    Type=STRING,
-    ))
-
-# }}}smtp
-
-# {{{quay
-
-QUAY_IO_USERNAME = TEMPLATE.add_parameter(Parameter(
-    'QuayIoUsername',
-    Type=STRING,
-    ))
-
-QUAY_IO_PASSWORD = TEMPLATE.add_parameter(Parameter(
-    'QuayIoPassword',
-    Type=STRING,
-    NoEcho=True,
-    ))
-
-# }}}quay
 
 # {{{kubernetes
 
@@ -804,17 +932,6 @@ TEMPLATE.add_resource(ec2.SecurityGroupIngress(
     GroupId=Ref(CLOUDERA_SECURITY_GROUP),
     ))
 
-CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'ClouderaMasterInstanceType',
-    Type=STRING,
-    Default=M3_XLARGE,
-    AllowedValues=[
-        M3_XLARGE, M3_2XLARGE,
-        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_8XLARGE,
-        ],
-    ))
-
 CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     'ClouderaManagerInstance',
     BlockDeviceMappings=[
@@ -914,17 +1031,6 @@ CLOUDERA_WORKER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     Roles=[Ref(CLOUDERA_ROLE)],
     ))
 
-CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'ClouderaWorkerInstanceType',
-    Type=STRING,
-    Default=M3_XLARGE,
-    AllowedValues=[
-        M3_XLARGE, M3_2XLARGE,
-        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_8XLARGE,
-        ],
-    ))
-
 CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
     'ClouderaWorkerLaunchConfiguration',
     BlockDeviceMappings=[
@@ -957,13 +1063,6 @@ CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchC
     InstanceType=Ref(CLOUDERA_WORKER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP)],
-    ))
-
-CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
-    'ClouderaWorkerCount',
-    Type=NUMBER,
-    Default='3',
-    MinValue='1',
     ))
 
 CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScalingGroup(
@@ -1143,19 +1242,6 @@ NGINX_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     Roles=[Ref(NGINX_ROLE)],
     ))
 
-NGINX_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'NGINXInstanceType',
-    Type=STRING,
-    Default=C4_LARGE,
-    AllowedValues=[
-        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
-        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
-        C4_LARGE, C4_XLARGE, C4_2XLARGE, C4_4XLARGE, C4_8XLARGE,
-        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
-        ],
-    ))
-
 NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     'NGINXInstance',
     BlockDeviceMappings=[
@@ -1170,7 +1256,7 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     DisableApiTermination=Ref(TERMINATION_PROTECTION_ENABLED),
     IamInstanceProfile=Ref(NGINX_INSTANCE_PROFILE),
     ImageId=UBUNTU_AMI,
-    InstanceType=Ref(NGINX_INSTANCE_TYPE),
+    InstanceType=T2_MEDIUM,
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroupIds=[
         Ref(NGINX_SECURITY_GROUP),
@@ -1180,11 +1266,6 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
         ],
     SubnetId=Ref(PUBLIC_SUBNET),
     Tags=Tags(Name='NGINX'),
-    ))
-
-NGINX_EIP = TEMPLATE.add_parameter(Parameter(
-    'NGINXEIP',
-    Type=STRING,
     ))
 
 NGINX_EIP_ASSOCIATION = TEMPLATE.add_resource(ec2.EIPAssociation(
