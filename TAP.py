@@ -30,6 +30,11 @@ import awacs.ec2
 import awacs.iam
 import awacs.sts
 
+# pylint: disable=anomalous-backslash-in-string
+IP_ADDRESS_PATTERN = '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[0' \
+                     '1]?[0-9][0-9]?)$'
+# pylint: enable=anomalous-backslash-in-string
+
 ANSIBLE_PULL_URL = os.getenv('ANSIBLE_PULL_URL',
                              'https://github.com/trustedanalytics/ansible-playbooks.git')
 
@@ -210,7 +215,7 @@ NGINX_EIP = TEMPLATE.add_parameter(Parameter(
     Type=STRING,
     MinLength='7',
     MaxLength='15',
-    AllowedPattern='(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})',
+    AllowedPattern=IP_ADDRESS_PATTERN,
     ConstraintDescription='must be a valid IP address of the form x.x.x.x.',
     ))
 
