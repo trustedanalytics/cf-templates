@@ -698,7 +698,7 @@ BOSH_DIRECTOR_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
     'BOSHDirectorWaitCondition',
     DependsOn=JUMP_BOX_INSTANCE.title,
     Handle=Ref(BOSH_DIRECTOR_WAIT_CONDITION_HANDLE),
-    Timeout='3600',
+    Timeout='5400',
     ))
 
 # }}}bosh
@@ -762,7 +762,7 @@ CF_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
     'CFWaitCondition',
     DependsOn=JUMP_BOX_INSTANCE.title,
     Handle=Ref(CF_WAIT_CONDITION_HANDLE),
-    Timeout='7200',
+    Timeout='10800',
     ))
 
 TEMPLATE.add_output(Output(
@@ -1165,7 +1165,7 @@ DOCKER_BROKER_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
     'DockerBrokerWaitCondition',
     DependsOn=JUMP_BOX_INSTANCE.title,
     Handle=Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE),
-    Timeout='7200',
+    Timeout='10800',
     ))
 
 # }}}docker-broker
@@ -1287,7 +1287,7 @@ NGINX_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
     'NGINXWaitCondition',
     DependsOn=NGINX_INSTANCE.title,
     Handle=Ref(NGINX_WAIT_CONDITION_HANDLE),
-    Timeout='900',
+    Timeout='1200',
     ))
 
 # }}}nginx
