@@ -49,6 +49,18 @@ TEMPLATE = Template()
 
 TEMPLATE.add_version('2010-09-09')
 
+TEMPLATE.add_description('Trusted Analytics Platform (TAP) is open source software, optimized for '
+                         'performance and security, that accelerates the creation of Cloud-native '
+                         'applications driven by Big Data Analytics. TAP makes it easier for '
+                         'developers and data scientists, at enterprises, CSPs and SIs, to '
+                         'collaborate by providing a shared, flexible environment for advanced '
+                         'analytics in public and private Clouds. Data scientists get extensible '
+                         'tools, scalable algorithms and powerful engines to train and deploy '
+                         'predictive models. Developers get consistent APIs, services and runtimes'
+                         ' to quickly integrate these models into applications. System Operators '
+                         'get an integrated stack that they can easily provision in a Cloud '
+                         'infrastructure.')
+
 TEMPLATE.add_mapping('Region2AMI', {
     EU_WEST_1:      {'Ubuntu': 'ami-cd0fd6be', 'RHEL': 'ami-78d29c0f'},
     AP_SOUTHEAST_1: {'Ubuntu': 'ami-9e7dbafd', 'RHEL': 'ami-faedeea8'},
