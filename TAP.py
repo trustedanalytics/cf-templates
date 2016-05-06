@@ -1182,6 +1182,39 @@ DOCKER_BROKER_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
 
 # }}}docker-broker
 
+# {{{logsearch
+
+LOGSEARCH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+    'LogsearchSubnet',
+    VpcId=Ref(VPC),
+    CidrBlock='10.0.7.0/24',
+    AvailabilityZone=Select(0, GetAZs()),
+    Tags=Tags(Name='Logsearch subnet'),
+    ))
+
+TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+    'LogsearchSubnetRouteTableAssociation',
+    SubnetId=Ref(LOGSEARCH_SUBNET),
+    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+    ))
+
+INSTALL_LOGSEARCH = TEMPLATE.add_parameter(Parameter(
+    'InstallLogsearch',
+    Type=STRING,
+    Default='true',
+    AllowedValues=['true', 'false'],
+    ))
+
+LOGSEARCH_DEPLOYMENT_SIZE = TEMPLATE.add_parameter(Parameter(
+    'LogsearchDeploymentSize',
+    Type=STRING,
+    Default='small',
+    AllowedValues=['small', 'medium'],
+    ))
+
+
+# }}}logsearch
+
 # {{{nginx
 
 NGINX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
@@ -1329,6 +1362,9 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'cf_wait_condition_handle=', Ref(CF_WAIT_CONDITION_HANDLE), '\n',
     'quay_io_username=', Ref(QUAY_IO_USERNAME), '\n',
     'quay_io_password=', Ref(QUAY_IO_PASSWORD), '\n',
+    'install_logsearch=', Ref(INSTALL_LOGSEARCH), '\n',
+    'logsearch_deployment_size=', Ref(LOGSEARCH_DEPLOYMENT_SIZE), '\n',
+    'logsearch_subnet_id=', Ref(LOGSEARCH_SUBNET), '\n',
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
     'docker_broker_wait_condition_handle=', Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE), '\n',
