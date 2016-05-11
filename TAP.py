@@ -29,6 +29,8 @@ import awacs.aws
 import awacs.ec2
 import awacs.iam
 import awacs.sts
+import awacs.autoscaling
+import awacs.cloudformation
 
 # pylint: disable=anomalous-backslash-in-string
 IP_ADDRESS_PATTERN = '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[0' \
@@ -800,6 +802,69 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
     ))
 
+KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
+    'KubernetesUser',
+    Policies=[
+        iam.Policy(
+            PolicyName=Join('-', ['Kubernetes', Ref(AWS_STACK_NAME)]),
+            PolicyDocument=awacs.aws.Policy(
+                Statement=[
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.iam.AddRoleToInstanceProfile,
+                            awacs.iam.CreateRole,
+                            awacs.iam.CreateInstanceProfile,
+                            awacs.iam.DeleteInstanceProfile,
+                            awacs.iam.DeleteRole,
+                            awacs.iam.DeleteRolePolicy,
+                            awacs.iam.PassRole,
+                            awacs.iam.PutRolePolicy,
+                            awacs.iam.RemoveRoleFromInstanceProfile,
+                        ],
+                        Resource=['*']
+                    ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.autoscaling.CreateLaunchConfiguration,
+                            awacs.autoscaling.CreateAutoScalingGroup,
+                            awacs.autoscaling.DeleteAutoScalingGroup,
+                            awacs.autoscaling.DeleteLaunchConfiguration,
+                            awacs.autoscaling.DescribeScalingActivities,
+                            awacs.autoscaling.DescribeAutoScalingGroups,
+                            awacs.autoscaling.DescribeLaunchConfigurations,
+                            awacs.autoscaling.UpdateAutoScalingGroup,
+                        ],
+                        Resource=['*']
+                    ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.cloudformation.CreateStack,
+                            awacs.cloudformation.DescribeStacks,
+                            awacs.cloudformation.DeleteStack,
+                        ],
+                        Resource=['*']
+                    ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.ec2.DescribeKeyPairs,
+                            awacs.ec2.DescribeSubnets,
+                            awacs.ec2.DescribeVpcs,
+                        ],
+                        Resource=['*']
+                    ),
+                ])),
+        ]))
+
+KUBERNETES_KEY = TEMPLATE.add_resource(iam.AccessKey(
+    'KubernetesKey',
+    Status='Active',
+    UserName=Ref(KUBERNETES_USER),
+))
+
 # }}}kubernetes
 
 # {{{consul
@@ -1344,6 +1409,11 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
     'docker_broker_wait_condition_handle=', Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE), '\n',
+    'kubernetes_aws_access_key_id=', Ref(KUBERNETES_KEY), '\n',
+    'kubernetes_aws_secret_access_key=', GetAtt(KUBERNETES_KEY, 'SecretAccessKey'), '\n',
+    'kubernetes_subnet_id=', Ref(KUBERNETES_SUBNET), '\n',
+    'stack=', Ref(AWS_STACK_NAME), '\n',
+    'region=', Ref(AWS_REGION), '\n',
     ])
 
 user_data(NGINX_INSTANCE)
