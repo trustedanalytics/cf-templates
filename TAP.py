@@ -612,6 +612,12 @@ BOSH_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'BOSHSecurityGroup',
     GroupDescription='BOSH deployed VMs',
     SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
         ],
     SecurityGroupEgress=[
         ec2.SecurityGroupRule(
@@ -984,6 +990,12 @@ CLOUDERA_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'ClouderaSecurityGroup',
     GroupDescription='Cloudera security group',
     SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
         ec2.SecurityGroupRule(
             IpProtocol='-1',
             FromPort='-1',
