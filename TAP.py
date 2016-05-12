@@ -806,7 +806,7 @@ KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
     'KubernetesUser',
     Policies=[
         iam.Policy(
-            PolicyName=Join('-', ['Kubernetes', Ref(AWS_STACK_NAME)]),
+            PolicyName='kubernetes-policy',
             PolicyDocument=awacs.aws.Policy(
                 Statement=[
                     awacs.aws.Statement(
@@ -821,9 +821,9 @@ KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
                             awacs.iam.PassRole,
                             awacs.iam.PutRolePolicy,
                             awacs.iam.RemoveRoleFromInstanceProfile,
-                        ],
-                        Resource=['*']
-                    ),
+                            ],
+                        Resource=['*'],
+                        ),
                     awacs.aws.Statement(
                         Effect=awacs.aws.Allow,
                         Action=[
@@ -835,35 +835,38 @@ KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
                             awacs.autoscaling.DescribeAutoScalingGroups,
                             awacs.autoscaling.DescribeLaunchConfigurations,
                             awacs.autoscaling.UpdateAutoScalingGroup,
-                        ],
-                        Resource=['*']
-                    ),
+                            ],
+                        Resource=['*'],
+                        ),
                     awacs.aws.Statement(
                         Effect=awacs.aws.Allow,
                         Action=[
                             awacs.cloudformation.CreateStack,
                             awacs.cloudformation.DescribeStacks,
                             awacs.cloudformation.DeleteStack,
-                        ],
-                        Resource=['*']
-                    ),
+                            ],
+                        Resource=['*'],
+                        ),
                     awacs.aws.Statement(
                         Effect=awacs.aws.Allow,
                         Action=[
                             awacs.ec2.DescribeKeyPairs,
                             awacs.ec2.DescribeSubnets,
                             awacs.ec2.DescribeVpcs,
-                        ],
-                        Resource=['*']
-                    ),
-                ])),
-        ]))
+                            ],
+                        Resource=['*'],
+                        ),
+                    ],
+                ),
+            ),
+        ],
+    ))
 
-KUBERNETES_KEY = TEMPLATE.add_resource(iam.AccessKey(
-    'KubernetesKey',
+KUBERNETES_ACCESS_KEY = TEMPLATE.add_resource(iam.AccessKey(
+    'KubernetesAccessKey',
     Status='Active',
     UserName=Ref(KUBERNETES_USER),
-))
+    ))
 
 # }}}kubernetes
 
@@ -1409,8 +1412,8 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
     'docker_broker_wait_condition_handle=', Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE), '\n',
-    'kubernetes_aws_access_key_id=', Ref(KUBERNETES_KEY), '\n',
-    'kubernetes_aws_secret_access_key=', GetAtt(KUBERNETES_KEY, 'SecretAccessKey'), '\n',
+    'kubernetes_aws_access_key_id=', Ref(KUBERNETES_ACCESS_KEY), '\n',
+    'kubernetes_aws_secret_access_key=', GetAtt(KUBERNETES_ACCESS_KEY, 'SecretAccessKey'), '\n',
     'kubernetes_subnet_id=', Ref(KUBERNETES_SUBNET), '\n',
     'stack=', Ref(AWS_STACK_NAME), '\n',
     'region=', Ref(AWS_REGION), '\n',
