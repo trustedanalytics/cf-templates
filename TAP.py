@@ -526,6 +526,12 @@ JUMP_BOX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     GroupDescription='jump box security group',
     SecurityGroupIngress=[
         ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ec2.SecurityGroupRule(
             IpProtocol='tcp',
             FromPort='22',
             ToPort='22',
@@ -1276,7 +1282,14 @@ LOGSEARCH_DEPLOYMENT_SIZE = TEMPLATE.add_parameter(Parameter(
 NGINX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'NGINXSecurityGroup',
     GroupDescription='NGINX security group',
-    SecurityGroupIngress=[],
+    SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
     SecurityGroupEgress=[
         ec2.SecurityGroupRule(
             IpProtocol='-1',
