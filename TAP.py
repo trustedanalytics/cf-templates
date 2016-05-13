@@ -31,6 +31,7 @@ import awacs.iam
 import awacs.sts
 import awacs.autoscaling
 import awacs.cloudformation
+import awacs.elasticloadbalancing
 
 # pylint: disable=anomalous-backslash-in-string
 IP_ADDRESS_PATTERN = '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[0' \
@@ -882,6 +883,22 @@ KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
                             awacs.ec2.DescribeKeyPairs,
                             awacs.ec2.DescribeSubnets,
                             awacs.ec2.DescribeVpcs,
+                            awacs.ec2.AuthorizeSecurityGroupEgress,
+                            awacs.ec2.RevokeSecurityGroupEgress,
+                            awacs.ec2.AuthorizeSecurityGroupIngress,
+                            awacs.ec2.RevokeSecurityGroupIngress,
+                            ],
+                        Resource=['*'],
+                        ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.elasticloadbalancing.CreateLoadBalancer,
+                            awacs.elasticloadbalancing.DeleteLoadBalancer,
+                            awacs.elasticloadbalancing.ModifyLoadBalancerAttributes,
+                            awacs.elasticloadbalancing.SetLoadBalancerPoliciesOfListener,
+                            awacs.elasticloadbalancing.ConfigureHealthCheck,
+                            awacs.elasticloadbalancing.DescribeLoadBalancers,
                             ],
                         Resource=['*'],
                         ),
