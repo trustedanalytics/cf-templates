@@ -35,6 +35,8 @@ import awacs.cloudformation
 # pylint: disable=anomalous-backslash-in-string
 IP_ADDRESS_PATTERN = '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[0' \
                      '1]?[0-9][0-9]?)$'
+DOMAIN_PATTERN = '^([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*\.)+[a-zA-Z]{2,}$'
+EMAIL_PATTERN = '^[\w!#$%&\'*+/=?`{|}~^-]+(?:\.[\w!#$%&\'*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,6}$'
 # pylint: enable=anomalous-backslash-in-string
 
 ANSIBLE_PULL_URL = os.getenv('ANSIBLE_PULL_URL',
@@ -102,12 +104,17 @@ CF_PASSWORD = TEMPLATE.add_parameter(Parameter(
     Description='The password of administrator account.',
     NoEcho=True,
     Type=STRING,
+    MinLength='6',
+    ConstraintDescription='must be at least 6 characters',
     ))
 
 CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
     'CFSystemDomain',
     Description='The domain that you configured to point to the Elastic IP address.',
     Type=STRING,
+    MinLength='3',
+    AllowedPattern=DOMAIN_PATTERN,
+    ConstraintDescription='must be a valid domain name',
     ))
 
 CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
@@ -139,6 +146,9 @@ CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
 SMTP_HOST = TEMPLATE.add_parameter(Parameter(
     'SMTPHost',
     Type=STRING,
+    MinLength='3',
+    AllowedPattern=DOMAIN_PATTERN,
+    ConstraintDescription='must be a valid domain name',
     ))
 
 SMTP_SENDER_USER = TEMPLATE.add_parameter(Parameter(
@@ -155,16 +165,23 @@ SMTP_PASSWORD = TEMPLATE.add_parameter(Parameter(
 SMTP_PORT = TEMPLATE.add_parameter(Parameter(
     'SMTPPort',
     Type=NUMBER,
+    MinValue='1',
+    ConstraintDescription='must be a valid smtp port number',
     ))
 
 SMTP_SENDER_EMAIL = TEMPLATE.add_parameter(Parameter(
     'SMTPSenderEmail',
     Type=STRING,
+    MinLength='3',
+    AllowedPattern=EMAIL_PATTERN,
+    ConstraintDescription='must be a valid email address of the form name@example.org',
     ))
 
 SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
     'SMTPSenderName',
     Type=STRING,
+    MinLength='1',
+    ConstraintDescription='must be at least 1 character',
     ))
 
 # }}}parameters-smtp
