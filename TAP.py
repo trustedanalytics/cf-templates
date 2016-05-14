@@ -29,6 +29,16 @@ import awacs.aws
 import awacs.ec2
 import awacs.iam
 import awacs.sts
+import awacs.autoscaling
+import awacs.cloudformation
+import awacs.elasticloadbalancing
+
+# pylint: disable=anomalous-backslash-in-string
+IP_ADDRESS_PATTERN = '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[0' \
+                     '1]?[0-9][0-9]?)$'
+DOMAIN_PATTERN = '^([a-zA-Z0-9]+(-[a-zA-Z0-9]+)*\.)+[a-zA-Z]{2,}$'
+EMAIL_PATTERN = '^[\w!#$%&\'*+/=?`{|}~^-]+(?:\.[\w!#$%&\'*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,6}$'
+# pylint: enable=anomalous-backslash-in-string
 
 ANSIBLE_PULL_URL = os.getenv('ANSIBLE_PULL_URL',
                              'https://github.com/trustedanalytics/ansible-playbooks.git')
@@ -37,11 +47,24 @@ ANSIBLE_PULL_CHECKOUT = os.getenv('ANSIBLE_PULL_CHECKOUT', 'master')
 
 ANSIBLE_GROUP_VARS = [
     'ntp_server=[\'0.amazon.pool.ntp.org\', \'1.amazon.pool.ntp.org\']\n',
+    'provider=aws\n',
     ]
 
 TEMPLATE = Template()
 
 TEMPLATE.add_version('2010-09-09')
+
+TEMPLATE.add_description('Trusted Analytics Platform (TAP) is open source software, optimized for '
+                         'performance and security, that accelerates the creation of Cloud-native '
+                         'applications driven by Big Data Analytics. TAP makes it easier for '
+                         'developers and data scientists, at enterprises, CSPs and SIs, to '
+                         'collaborate by providing a shared, flexible environment for advanced '
+                         'analytics in public and private Clouds. Data scientists get extensible '
+                         'tools, scalable algorithms and powerful engines to train and deploy '
+                         'predictive models. Developers get consistent APIs, services and runtimes'
+                         ' to quickly integrate these models into applications. System Operators '
+                         'get an integrated stack that they can easily provision in a Cloud '
+                         'infrastructure.')
 
 TEMPLATE.add_mapping('Region2AMI', {
     EU_WEST_1:      {'Ubuntu': 'ami-cd0fd6be', 'RHEL': 'ami-78d29c0f'},
@@ -58,6 +81,243 @@ TEMPLATE.add_mapping('Region2AMI', {
 UBUNTU_AMI = FindInMap('Region2AMI', Ref(AWS_REGION), 'Ubuntu')
 RHEL_AMI = FindInMap('Region2AMI', Ref(AWS_REGION), 'RHEL')
 
+# {{{parameters
+
+KEY_NAME = TEMPLATE.add_parameter(Parameter(
+    'KeyName',
+    Description='The EC2 Key Pair to allow SSH access to the jump box.',
+    Type=KEY_PAIR_NAME,
+    ConstraintDescription='must be the name of an existing EC2 KeyPair.',
+    ))
+
+TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
+    'TerminationProtectionEnabled',
+    Description='Termination protection for the jump box and Cloudera Manager instances.',
+    Type=STRING,
+    Default='true',
+    AllowedValues=['true', 'false'],
+    ))
+
+# {{{parameters-cloudfoundry
+
+CF_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'CFPassword',
+    Description='The password of administrator account.',
+    NoEcho=True,
+    Type=STRING,
+    MinLength='6',
+    ConstraintDescription='must be at least 6 characters',
+    ))
+
+CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
+    'CFSystemDomain',
+    Description='The domain that you configured to point to the Elastic IP address.',
+    Type=STRING,
+    MinLength='3',
+    AllowedPattern=DOMAIN_PATTERN,
+    ConstraintDescription='must be a valid domain name',
+    ))
+
+CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
+    'CFRunnerZ1Instances',
+    Description='The number of instances to launch.',
+    Type=NUMBER,
+    Default='2',
+    MinValue='1',
+    ))
+
+CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'CFRunnerZ1InstanceType',
+    Description='The instance type for Droplet Execution Agents.',
+    Type=STRING,
+    Default=R3_XLARGE,
+    AllowedValues=[
+        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
+        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
+        C4_LARGE, C4_XLARGE, C4_2XLARGE, C4_4XLARGE, C4_8XLARGE,
+        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
+        ],
+    ))
+
+# }}}parameters-cloudfoundry
+
+# {{{parameters-smtp
+
+SMTP_HOST = TEMPLATE.add_parameter(Parameter(
+    'SMTPHost',
+    Type=STRING,
+    MinLength='3',
+    AllowedPattern=DOMAIN_PATTERN,
+    ConstraintDescription='must be a valid domain name',
+    ))
+
+SMTP_SENDER_USER = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderUser',
+    Type=STRING,
+    ))
+
+SMTP_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'SMTPPassword',
+    Type=STRING,
+    NoEcho=True,
+    ))
+
+SMTP_PORT = TEMPLATE.add_parameter(Parameter(
+    'SMTPPort',
+    Type=NUMBER,
+    MinValue='1',
+    ConstraintDescription='must be a valid smtp port number',
+    ))
+
+SMTP_SENDER_EMAIL = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderEmail',
+    Type=STRING,
+    MinLength='3',
+    AllowedPattern=EMAIL_PATTERN,
+    ConstraintDescription='must be a valid email address of the form name@example.org',
+    ))
+
+SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
+    'SMTPSenderName',
+    Type=STRING,
+    MinLength='1',
+    ConstraintDescription='must be at least 1 character',
+    ))
+
+# }}}parameters-smtp
+
+# {{{parameters-quay
+
+QUAY_IO_USERNAME = TEMPLATE.add_parameter(Parameter(
+    'QuayIoUsername',
+    Description='An optional username of the Quay.io robot account.',
+    Type=STRING,
+    ))
+
+QUAY_IO_PASSWORD = TEMPLATE.add_parameter(Parameter(
+    'QuayIoPassword',
+    Description='An optional password of the Quay.io robot account.',
+    Type=STRING,
+    NoEcho=True,
+    ))
+
+# }}}parameters-quay
+
+# {{{parameters-cloudera
+
+CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaMasterInstanceType',
+    Description='The instance type for Master nodes.',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[
+        M3_XLARGE, M3_2XLARGE,
+        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_8XLARGE,
+        ],
+    ))
+
+CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
+    'ClouderaWorkerInstanceType',
+    Description='The instance type for Worker nodes.',
+    Type=STRING,
+    Default=M3_XLARGE,
+    AllowedValues=[
+        M3_XLARGE, M3_2XLARGE,
+        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
+        R3_8XLARGE,
+        ],
+    ))
+
+CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
+    'ClouderaWorkerCount',
+    Description='The number of instances to launch.',
+    Type=NUMBER,
+    Default='3',
+    MinValue='3',
+    ))
+
+# }}}parameters-cloudera
+
+# {{{parameters-nginx
+
+NGINX_EIP = TEMPLATE.add_parameter(Parameter(
+    'NGINXEIP',
+    Description='An existing Elastic IP address.',
+    Type=STRING,
+    MinLength='7',
+    MaxLength='15',
+    AllowedPattern=IP_ADDRESS_PATTERN,
+    ConstraintDescription='must be a valid IP address of the form x.x.x.x.',
+    ))
+
+# }}}parameters-nginx
+
+TEMPLATE.add_metadata({
+    'AWS::CloudFormation::Interface': {
+        'ParameterGroups': [
+            {
+                'Label': {'default': 'Configuration for Cloudera'},
+                'Parameters': [
+                    CLOUDERA_MASTER_INSTANCE_TYPE.title,
+                    CLOUDERA_WORKER_INSTANCE_TYPE.title,
+                    CLOUDERA_WORKER_COUNT.title,
+                    ],
+                },
+            {
+                'Label': {'default': 'Configuration for Cloud Foundry'},
+                'Parameters': [
+                    CF_PASSWORD.title,
+                    CF_SYSTEM_DOMAIN.title,
+                    CF_RUNNER_Z1_INSTANCES.title,
+                    CF_RUNNER_Z1_INSTANCE_TYPE.title,
+                    ],
+                },
+            {
+                'Label': {'default': 'Configuration for SMTP'},
+                'Parameters': [
+                    SMTP_HOST.title,
+                    SMTP_PORT.title,
+                    SMTP_SENDER_USER.title,
+                    SMTP_PASSWORD.title,
+                    SMTP_SENDER_NAME.title,
+                    SMTP_SENDER_EMAIL.title,
+                    ],
+                },
+            {
+                'Label': {'default': 'Credentials for Quay.io robot account'},
+                'Parameters': [
+                    QUAY_IO_USERNAME.title,
+                    QUAY_IO_PASSWORD.title,
+                    ],
+                },
+            ],
+        'ParameterLabels': {
+            KEY_NAME.title: {'default': 'Key pair name'},
+            TERMINATION_PROTECTION_ENABLED.title: {'default': 'Termination protection'},
+            CLOUDERA_MASTER_INSTANCE_TYPE.title: {'default': 'Instance type for masters'},
+            CLOUDERA_WORKER_INSTANCE_TYPE.title: {'default': 'Instance type for workers'},
+            CLOUDERA_WORKER_COUNT.title: {'default': 'Number of workers'},
+            CF_PASSWORD.title: {'default': 'Password'},
+            CF_SYSTEM_DOMAIN.title: {'default': 'System domain'},
+            CF_RUNNER_Z1_INSTANCES.title: {'default': 'Number of DEAs'},
+            CF_RUNNER_Z1_INSTANCE_TYPE.title: {'default': 'Instance type for DEA'},
+            SMTP_HOST.title: {'default': 'Server host address'},
+            SMTP_PORT.title: {'default': 'Server port'},
+            SMTP_SENDER_USER.title: {'default': 'Server username'},
+            SMTP_PASSWORD.title: {'default': 'Server password'},
+            SMTP_SENDER_NAME.title: {'default': 'From name'},
+            SMTP_SENDER_EMAIL.title: {'default': 'From email address'},
+            QUAY_IO_USERNAME.title: {'default': 'Username'},
+            QUAY_IO_PASSWORD.title: {'default': 'Password'},
+            NGINX_EIP.title: {'default': 'Elastic IP address for the load balancer'},
+            },
+        }
+    })
+
+# }}}parameters
+
 def metadata(resource, ansible_group_name, ansible_group_vars=None):
     ansible_hosts = [
         '[{0}]\n'.format(ansible_group_name),
@@ -72,7 +332,6 @@ def metadata(resource, ansible_group_name, ansible_group_vars=None):
         ansible_hosts.extend(ansible_group_vars)
 
     resource.Metadata = cloudformation.Metadata(
-        # pylint: disable=line-too-long
         cloudformation.Init({
             'config': cloudformation.InitConfig(
                 packages={
@@ -153,10 +412,9 @@ def user_data(resource):
         'DEBIAN_FRONTEND=noninteractive\n',
         '\n',
         'apt-get -q update\n',
-        'apt-get -qy install autoconf build-essential python-dev\n',
+        'apt-get -qy install autoconf build-essential python-dev libffi-dev libssl-dev\n',
         '\n',
-        'pip install -q ',
-        'http://releases.ansible.com/ansible/ansible-2.0.0-0.9.rc4.tar.gz\n',
+        'pip install -q ansible==2.0.2.0\n',
         '\n',
         'pip install ',
         'https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n',
@@ -213,11 +471,6 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
 
 # }}}vpc-with-single-public-subnet
 
-KEY_NAME = TEMPLATE.add_parameter(Parameter(
-    'KeyName',
-    Type=KEY_PAIR_NAME,
-    ))
-
 # {{{nat-gateway
 
 NAT_EIP = TEMPLATE.add_resource(ec2.EIP(
@@ -249,13 +502,6 @@ TEMPLATE.add_resource(ec2.Route(
     ))
 
 # }}}private-route-table
-
-TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
-    'TerminationProtectionEnabled',
-    Type=STRING,
-    Default='true',
-    AllowedValues=['true', 'false'],
-    ))
 
 # {{{jump-box
 
@@ -297,6 +543,12 @@ JUMP_BOX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'JumpBoxSecurityGroup',
     GroupDescription='jump box security group',
     SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
         ec2.SecurityGroupRule(
             IpProtocol='tcp',
             FromPort='22',
@@ -384,6 +636,12 @@ BOSH_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'BOSHSecurityGroup',
     GroupDescription='BOSH deployed VMs',
     SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
         ],
     SecurityGroupEgress=[
         ec2.SecurityGroupRule(
@@ -484,7 +742,7 @@ BOSH_DIRECTOR_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
     'BOSHDirectorWaitCondition',
     DependsOn=JUMP_BOX_INSTANCE.title,
     Handle=Ref(BOSH_DIRECTOR_WAIT_CONDITION_HANDLE),
-    Timeout='3600',
+    Timeout='5400',
     ))
 
 # }}}bosh
@@ -540,37 +798,6 @@ CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     VpcId=Ref(VPC),
     ))
 
-CF_PASSWORD = TEMPLATE.add_parameter(Parameter(
-    'CFPassword',
-    NoEcho=True,
-    Type=STRING,
-    ))
-
-CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
-    'CFSystemDomain',
-    Type=STRING,
-    ))
-
-CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
-    'CFRunnerZ1Instances',
-    Type=NUMBER,
-    Default='2',
-    MinValue='1',
-    ))
-
-CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'CFRunnerZ1InstanceType',
-    Type=STRING,
-    Default=R3_XLARGE,
-    AllowedValues=[
-        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
-        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
-        C4_LARGE, C4_XLARGE, C4_2XLARGE, C4_4XLARGE, C4_8XLARGE,
-        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
-        ],
-    ))
-
 CF_WAIT_CONDITION_HANDLE = TEMPLATE.add_resource(cloudformation.WaitConditionHandle(
     'CFWaitConditionHandle',
     ))
@@ -579,7 +806,7 @@ CF_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
     'CFWaitCondition',
     DependsOn=JUMP_BOX_INSTANCE.title,
     Handle=Ref(CF_WAIT_CONDITION_HANDLE),
-    Timeout='7200',
+    Timeout='10800',
     ))
 
 TEMPLATE.add_output(Output(
@@ -588,56 +815,6 @@ TEMPLATE.add_output(Output(
     ))
 
 # }}}cf
-
-# {{{smtp
-
-SMTP_HOST = TEMPLATE.add_parameter(Parameter(
-    'SMTPHost',
-    Type=STRING,
-    ))
-
-SMTP_SENDER_USER = TEMPLATE.add_parameter(Parameter(
-    'SMTPSenderUser',
-    Type=STRING,
-    ))
-
-SMTP_PASSWORD = TEMPLATE.add_parameter(Parameter(
-    'SMTPPassword',
-    Type=STRING,
-    NoEcho=True,
-    ))
-
-SMTP_PORT = TEMPLATE.add_parameter(Parameter(
-    'SMTPPort',
-    Type=NUMBER,
-    ))
-
-SMTP_SENDER_EMAIL = TEMPLATE.add_parameter(Parameter(
-    'SMTPSenderEmail',
-    Type=STRING,
-    ))
-
-SMTP_SENDER_NAME = TEMPLATE.add_parameter(Parameter(
-    'SMTPSenderName',
-    Type=STRING,
-    ))
-
-# }}}smtp
-
-# {{{quay
-
-QUAY_IO_USERNAME = TEMPLATE.add_parameter(Parameter(
-    'QuayIoUsername',
-    Type=STRING,
-    ))
-
-QUAY_IO_PASSWORD = TEMPLATE.add_parameter(Parameter(
-    'QuayIoPassword',
-    Type=STRING,
-    NoEcho=True,
-    ))
-
-# }}}quay
 
 # {{{kubernetes
 
@@ -653,6 +830,88 @@ TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
     'KubernetesSubnetRouteTableAssociation',
     SubnetId=Ref(KUBERNETES_SUBNET),
     RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+    ))
+
+KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
+    'KubernetesUser',
+    Policies=[
+        iam.Policy(
+            PolicyName='kubernetes-policy',
+            PolicyDocument=awacs.aws.Policy(
+                Statement=[
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.iam.AddRoleToInstanceProfile,
+                            awacs.iam.CreateRole,
+                            awacs.iam.CreateInstanceProfile,
+                            awacs.iam.DeleteInstanceProfile,
+                            awacs.iam.DeleteRole,
+                            awacs.iam.DeleteRolePolicy,
+                            awacs.iam.PassRole,
+                            awacs.iam.PutRolePolicy,
+                            awacs.iam.RemoveRoleFromInstanceProfile,
+                            ],
+                        Resource=['*'],
+                        ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.autoscaling.CreateLaunchConfiguration,
+                            awacs.autoscaling.CreateAutoScalingGroup,
+                            awacs.autoscaling.DeleteAutoScalingGroup,
+                            awacs.autoscaling.DeleteLaunchConfiguration,
+                            awacs.autoscaling.DescribeScalingActivities,
+                            awacs.autoscaling.DescribeAutoScalingGroups,
+                            awacs.autoscaling.DescribeLaunchConfigurations,
+                            awacs.autoscaling.UpdateAutoScalingGroup,
+                            ],
+                        Resource=['*'],
+                        ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.cloudformation.CreateStack,
+                            awacs.cloudformation.DescribeStacks,
+                            awacs.cloudformation.DeleteStack,
+                            ],
+                        Resource=['*'],
+                        ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.ec2.DescribeKeyPairs,
+                            awacs.ec2.DescribeSubnets,
+                            awacs.ec2.DescribeVpcs,
+                            awacs.ec2.AuthorizeSecurityGroupEgress,
+                            awacs.ec2.RevokeSecurityGroupEgress,
+                            awacs.ec2.AuthorizeSecurityGroupIngress,
+                            awacs.ec2.RevokeSecurityGroupIngress,
+                            ],
+                        Resource=['*'],
+                        ),
+                    awacs.aws.Statement(
+                        Effect=awacs.aws.Allow,
+                        Action=[
+                            awacs.elasticloadbalancing.CreateLoadBalancer,
+                            awacs.elasticloadbalancing.DeleteLoadBalancer,
+                            awacs.elasticloadbalancing.ModifyLoadBalancerAttributes,
+                            awacs.elasticloadbalancing.SetLoadBalancerPoliciesOfListener,
+                            awacs.elasticloadbalancing.ConfigureHealthCheck,
+                            awacs.elasticloadbalancing.DescribeLoadBalancers,
+                            ],
+                        Resource=['*'],
+                        ),
+                    ],
+                ),
+            ),
+        ],
+    ))
+
+KUBERNETES_ACCESS_KEY = TEMPLATE.add_resource(iam.AccessKey(
+    'KubernetesAccessKey',
+    Status='Active',
+    UserName=Ref(KUBERNETES_USER),
     ))
 
 # }}}kubernetes
@@ -772,6 +1031,12 @@ CLOUDERA_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     GroupDescription='Cloudera security group',
     SecurityGroupIngress=[
         ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ec2.SecurityGroupRule(
             IpProtocol='-1',
             FromPort='-1',
             ToPort='-1',
@@ -802,17 +1067,6 @@ TEMPLATE.add_resource(ec2.SecurityGroupIngress(
     ToPort='-1',
     SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
     GroupId=Ref(CLOUDERA_SECURITY_GROUP),
-    ))
-
-CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'ClouderaMasterInstanceType',
-    Type=STRING,
-    Default=M3_XLARGE,
-    AllowedValues=[
-        M3_XLARGE, M3_2XLARGE,
-        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_8XLARGE,
-        ],
     ))
 
 CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
@@ -914,17 +1168,6 @@ CLOUDERA_WORKER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     Roles=[Ref(CLOUDERA_ROLE)],
     ))
 
-CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'ClouderaWorkerInstanceType',
-    Type=STRING,
-    Default=M3_XLARGE,
-    AllowedValues=[
-        M3_XLARGE, M3_2XLARGE,
-        C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_8XLARGE,
-        ],
-    ))
-
 CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchConfiguration(
     'ClouderaWorkerLaunchConfiguration',
     BlockDeviceMappings=[
@@ -957,13 +1200,6 @@ CLOUDERA_WORKER_LAUNCH_CONFIGURATION = TEMPLATE.add_resource(autoscaling.LaunchC
     InstanceType=Ref(CLOUDERA_WORKER_INSTANCE_TYPE),
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroups=[Ref(CLOUDERA_SECURITY_GROUP)],
-    ))
-
-CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
-    'ClouderaWorkerCount',
-    Type=NUMBER,
-    Default='3',
-    MinValue='1',
     ))
 
 CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScalingGroup(
@@ -1000,39 +1236,15 @@ DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     SecurityGroupIngress=[
         ec2.SecurityGroupRule(
             IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
+            FromPort='30000',
+            ToPort='60000',
+            CidrIp='0.0.0.0/0',
             ),
         ec2.SecurityGroupRule(
             IpProtocol='udp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CF_PUBLIC_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='udp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(CLOUDERA_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='tcp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
-            ),
-        ec2.SecurityGroupRule(
-            IpProtocol='udp',
-            FromPort='32768',
-            ToPort='61000',
-            SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+            FromPort='30000',
+            ToPort='60000',
+            CidrIp='0.0.0.0/0',
             ),
         ec2.SecurityGroupRule(
             IpProtocol='tcp',
@@ -1061,17 +1273,57 @@ DOCKER_BROKER_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
     'DockerBrokerWaitCondition',
     DependsOn=JUMP_BOX_INSTANCE.title,
     Handle=Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE),
-    Timeout='7200',
+    Timeout='10800',
     ))
 
 # }}}docker-broker
+
+# {{{logsearch
+
+LOGSEARCH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+    'LogsearchSubnet',
+    VpcId=Ref(VPC),
+    CidrBlock='10.0.7.0/24',
+    AvailabilityZone=Select(0, GetAZs()),
+    Tags=Tags(Name='Logsearch subnet'),
+    ))
+
+TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+    'LogsearchSubnetRouteTableAssociation',
+    SubnetId=Ref(LOGSEARCH_SUBNET),
+    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+    ))
+
+INSTALL_LOGSEARCH = TEMPLATE.add_parameter(Parameter(
+    'InstallLogsearch',
+    Type=STRING,
+    Default='true',
+    AllowedValues=['true', 'false'],
+    ))
+
+LOGSEARCH_DEPLOYMENT_SIZE = TEMPLATE.add_parameter(Parameter(
+    'LogsearchDeploymentSize',
+    Type=STRING,
+    Default='small',
+    AllowedValues=['small', 'medium'],
+    ))
+
+
+# }}}logsearch
 
 # {{{nginx
 
 NGINX_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'NGINXSecurityGroup',
     GroupDescription='NGINX security group',
-    SecurityGroupIngress=[],
+    SecurityGroupIngress=[
+        ec2.SecurityGroupRule(
+            IpProtocol='icmp',
+            FromPort='-1',
+            ToPort='-1',
+            CidrIp='0.0.0.0/0',
+            ),
+        ],
     SecurityGroupEgress=[
         ec2.SecurityGroupRule(
             IpProtocol='-1',
@@ -1143,19 +1395,6 @@ NGINX_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     Roles=[Ref(NGINX_ROLE)],
     ))
 
-NGINX_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
-    'NGINXInstanceType',
-    Type=STRING,
-    Default=C4_LARGE,
-    AllowedValues=[
-        M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
-        M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
-        C4_LARGE, C4_XLARGE, C4_2XLARGE, C4_4XLARGE, C4_8XLARGE,
-        C3_LARGE, C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
-        R3_LARGE, R3_XLARGE, R3_2XLARGE, R3_4XLARGE, R3_8XLARGE,
-        ],
-    ))
-
 NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     'NGINXInstance',
     BlockDeviceMappings=[
@@ -1170,7 +1409,7 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     DisableApiTermination=Ref(TERMINATION_PROTECTION_ENABLED),
     IamInstanceProfile=Ref(NGINX_INSTANCE_PROFILE),
     ImageId=UBUNTU_AMI,
-    InstanceType=Ref(NGINX_INSTANCE_TYPE),
+    InstanceType=T2_MEDIUM,
     KeyName=Join('-', [Ref(AWS_STACK_NAME), 'key']),
     SecurityGroupIds=[
         Ref(NGINX_SECURITY_GROUP),
@@ -1180,11 +1419,6 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
         ],
     SubnetId=Ref(PUBLIC_SUBNET),
     Tags=Tags(Name='NGINX'),
-    ))
-
-NGINX_EIP = TEMPLATE.add_parameter(Parameter(
-    'NGINXEIP',
-    Type=STRING,
     ))
 
 NGINX_EIP_ASSOCIATION = TEMPLATE.add_resource(ec2.EIPAssociation(
@@ -1201,7 +1435,7 @@ NGINX_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
     'NGINXWaitCondition',
     DependsOn=NGINX_INSTANCE.title,
     Handle=Ref(NGINX_WAIT_CONDITION_HANDLE),
-    Timeout='900',
+    Timeout='1200',
     ))
 
 # }}}nginx
@@ -1231,9 +1465,17 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'cf_wait_condition_handle=', Ref(CF_WAIT_CONDITION_HANDLE), '\n',
     'quay_io_username=', Ref(QUAY_IO_USERNAME), '\n',
     'quay_io_password=', Ref(QUAY_IO_PASSWORD), '\n',
+    'install_logsearch=', Ref(INSTALL_LOGSEARCH), '\n',
+    'logsearch_deployment_size=', Ref(LOGSEARCH_DEPLOYMENT_SIZE), '\n',
+    'logsearch_subnet_id=', Ref(LOGSEARCH_SUBNET), '\n',
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_broker_security_group=', Ref(DOCKER_BROKER_SECURITY_GROUP), '\n',
     'docker_broker_wait_condition_handle=', Ref(DOCKER_BROKER_WAIT_CONDITION_HANDLE), '\n',
+    'kubernetes_aws_access_key_id=', Ref(KUBERNETES_ACCESS_KEY), '\n',
+    'kubernetes_aws_secret_access_key=', GetAtt(KUBERNETES_ACCESS_KEY, 'SecretAccessKey'), '\n',
+    'kubernetes_subnet_id=', Ref(KUBERNETES_SUBNET), '\n',
+    'stack=', Ref(AWS_STACK_NAME), '\n',
+    'region=', Ref(AWS_REGION), '\n',
     ])
 
 user_data(NGINX_INSTANCE)
