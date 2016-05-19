@@ -944,7 +944,7 @@ for protocol in ('tcp', 'udp'):
             IpProtocol=protocol,
             FromPort=str(port),
             ToPort=str(port),
-            SourceSecurityGroupId=Ref(CONSUL_SECURITY_GROUP),
+            CidrIp=GetAtt(VPC, 'CidrBlock'),
             GroupId=Ref(CONSUL_SECURITY_GROUP),
             ))
 
