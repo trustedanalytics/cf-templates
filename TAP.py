@@ -1078,7 +1078,7 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
         ec2.BlockDeviceMapping(
             DeviceName='/dev/sda1',
             Ebs=ec2.EBSBlockDevice(
-                VolumeSize='30',
+                VolumeSize='60',
                 )
             ),
         ec2.BlockDeviceMapping(
