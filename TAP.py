@@ -526,7 +526,7 @@ JUMP_BOX_POLICY = TEMPLATE.add_resource(iam.PolicyType(
             awacs.aws.Statement(
                 Effect=awacs.aws.Allow,
                 Action=[awacs.ec2.CreateKeyPair, awacs.ec2.DeleteKeyPair,
-                        awacs.ec2.DescribeKeyPairs],
+                        awacs.ec2.DescribeKeyPairs, awacs.ec2.DescribeInstances],
                 Resource=['*'],
                 ),
             ],
