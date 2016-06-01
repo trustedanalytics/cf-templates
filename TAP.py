@@ -1488,6 +1488,7 @@ metadata(NGINX_INSTANCE, 'nginx', [
     'docker_subnet_id=', Ref(DOCKER_SUBNET), '\n',
     'docker_registry_password=', Ref(CF_PASSWORD), '\n',
     'nginx_wait_condition_handle=', Ref(NGINX_WAIT_CONDITION_HANDLE), '\n',
+    'consul_servers=[\'', GetAtt(CLOUDERA_MANAGER_INSTANCE, 'PrivateIp'), '\']\n',
     ])
 
 print TEMPLATE.to_json()
