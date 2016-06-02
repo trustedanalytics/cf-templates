@@ -134,7 +134,7 @@ CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
 
 CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'CFRunnerZ1InstanceType',
-    Description='The default of {} is recommended.'.format(CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT)
+    Description='The default of {} is recommended.'.format(CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT),
     Type=STRING,
     Default=CF_RUNNER_Z1_INSTANCE_TYPE,
     AllowedValues=[
