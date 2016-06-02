@@ -242,14 +242,12 @@ CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
 
 # {{{parameters-nginx
 
-NGINX_EIP = TEMPLATE.add_parameter(Parameter(
-    'NGINXEIP',
-    Description='An existing Elastic IP address.',
+EIP_ALLOCATIONID = TEMPLATE.add_parameter(Parameter(
+    'EIPALLOCATIONID',
+    Description='The allocation id for the elastic ip being used.',
     Type=STRING,
-    MinLength='7',
-    MaxLength='15',
-    AllowedPattern=IP_ADDRESS_PATTERN,
-    ConstraintDescription='must be a valid IP address of the form x.x.x.x.',
+    MinLength='5',
+    MaxLength='30',
     ))
 
 # }}}parameters-nginx
@@ -311,7 +309,7 @@ TEMPLATE.add_metadata({
             SMTP_SENDER_EMAIL.title: {'default': 'From email address'},
             QUAY_IO_USERNAME.title: {'default': 'Username'},
             QUAY_IO_PASSWORD.title: {'default': 'Password'},
-            NGINX_EIP.title: {'default': 'Elastic IP address for the load balancer'},
+            EIP_ALLOCATIONID.title: {'default': 'Allocation Id for Elastic IP'},
             },
         }
     })
@@ -1426,7 +1424,7 @@ NGINX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
 
 NGINX_EIP_ASSOCIATION = TEMPLATE.add_resource(ec2.EIPAssociation(
     'NGINXEIPAssociation',
-    EIP=Ref(NGINX_EIP),
+    AllocationId=Ref(EIP_ALLOCATIONID),
     InstanceId=Ref(NGINX_INSTANCE),
     ))
 
