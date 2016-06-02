@@ -136,7 +136,7 @@ CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'CFRunnerZ1InstanceType',
     Description='The default of {} is recommended.'.format(CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT),
     Type=STRING,
-    Default=CF_RUNNER_Z1_INSTANCE_TYPE,
+    Default=CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT,
     AllowedValues=[
         M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
         M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
