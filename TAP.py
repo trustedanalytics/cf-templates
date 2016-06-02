@@ -33,6 +33,10 @@ import awacs.autoscaling
 import awacs.cloudformation
 import awacs.elasticloadbalancing
 
+CLOUDERA_MASTER_INSTANCE_TYPE_DEFAULT = M3_XLARGE
+CLOUDERA_WORKER_INSTANCE_TYPE_DEFAULT = M3_XLARGE
+CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT = R3_XLARGE
+
 # pylint: disable=anomalous-backslash-in-string
 IP_ADDRESS_PATTERN = '^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[0' \
                      '1]?[0-9][0-9]?)$'
@@ -92,7 +96,9 @@ KEY_NAME = TEMPLATE.add_parameter(Parameter(
 
 TERMINATION_PROTECTION_ENABLED = TEMPLATE.add_parameter(Parameter(
     'TerminationProtectionEnabled',
-    Description='Termination protection for the jump box and Cloudera Manager instances.',
+    Description='This prevents accidental removal of the Jump Box and Cloudera Manager. '
+                'Please note that when ON, you will need to turn it off before '
+                'deleting the environment',
     Type=STRING,
     Default='true',
     AllowedValues=['true', 'false'],
@@ -120,7 +126,7 @@ CF_SYSTEM_DOMAIN = TEMPLATE.add_parameter(Parameter(
 
 CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
     'CFRunnerZ1Instances',
-    Description='The number of instances to launch.',
+    Description='The default of 2 is recommended.',
     Type=NUMBER,
     Default='2',
     MinValue='1',
@@ -128,9 +134,9 @@ CF_RUNNER_Z1_INSTANCES = TEMPLATE.add_parameter(Parameter(
 
 CF_RUNNER_Z1_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'CFRunnerZ1InstanceType',
-    Description='The instance type for Droplet Execution Agents.',
+    Description='The default of {} is recommended.'.format(CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT)
     Type=STRING,
-    Default=R3_XLARGE,
+    Default=CF_RUNNER_Z1_INSTANCE_TYPE,
     AllowedValues=[
         M4_LARGE, M4_XLARGE, M4_2XLARGE, M4_4XLARGE, M4_10XLARGE,
         M3_MEDIUM, M3_LARGE, M3_XLARGE, M3_2XLARGE,
@@ -208,9 +214,9 @@ QUAY_IO_PASSWORD = TEMPLATE.add_parameter(Parameter(
 
 CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'ClouderaMasterInstanceType',
-    Description='The instance type for Master nodes.',
+    Description='The default of {} is recommended.'.format(CLOUDERA_MASTER_INSTANCE_TYPE_DEFAULT),
     Type=STRING,
-    Default=M3_XLARGE,
+    Default=CLOUDERA_MASTER_INSTANCE_TYPE_DEFAULT,
     AllowedValues=[
         M3_XLARGE, M3_2XLARGE,
         C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
@@ -220,9 +226,9 @@ CLOUDERA_MASTER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
 
 CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
     'ClouderaWorkerInstanceType',
-    Description='The instance type for Worker nodes.',
+    Description='The default of {} is recommended.'.format(CLOUDERA_WORKER_INSTANCE_TYPE_DEFAULT),
     Type=STRING,
-    Default=M3_XLARGE,
+    Default=CLOUDERA_WORKER_INSTANCE_TYPE_DEFAULT,
     AllowedValues=[
         M3_XLARGE, M3_2XLARGE,
         C3_XLARGE, C3_2XLARGE, C3_4XLARGE, C3_8XLARGE,
@@ -232,7 +238,7 @@ CLOUDERA_WORKER_INSTANCE_TYPE = TEMPLATE.add_parameter(Parameter(
 
 CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
     'ClouderaWorkerCount',
-    Description='The number of instances to launch.',
+    Description='The default of 3 is recommended.',
     Type=NUMBER,
     Default='3',
     MinValue='3',
@@ -296,10 +302,10 @@ TEMPLATE.add_metadata({
         'ParameterLabels': {
             KEY_NAME.title: {'default': 'Key pair name'},
             TERMINATION_PROTECTION_ENABLED.title: {'default': 'Termination protection'},
-            CLOUDERA_MASTER_INSTANCE_TYPE.title: {'default': 'Instance type for masters'},
-            CLOUDERA_WORKER_INSTANCE_TYPE.title: {'default': 'Instance type for workers'},
+            CLOUDERA_MASTER_INSTANCE_TYPE.title: {'default': 'Instance type for Master nodes'},
+            CLOUDERA_WORKER_INSTANCE_TYPE.title: {'default': 'Instance type for Worker nodes'},
             CLOUDERA_WORKER_COUNT.title: {'default': 'Number of workers'},
-            CF_PASSWORD.title: {'default': 'Password'},
+            CF_PASSWORD.title: {'default': 'Administrator password'},
             CF_SYSTEM_DOMAIN.title: {'default': 'System domain'},
             CF_RUNNER_Z1_INSTANCES.title: {'default': 'Number of DEAs'},
             CF_RUNNER_Z1_INSTANCE_TYPE.title: {'default': 'Instance type for DEA'},
