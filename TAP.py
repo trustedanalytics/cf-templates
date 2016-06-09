@@ -33,6 +33,10 @@ import awacs.autoscaling
 import awacs.cloudformation
 import awacs.elasticloadbalancing
 
+DEFAULT_VERSION = '0.7.0'
+
+__version__ = os.getenv('VERSION', DEFAULT_VERSION)
+
 CLOUDERA_MASTER_INSTANCE_TYPE_DEFAULT = M3_XLARGE
 CLOUDERA_WORKER_INSTANCE_TYPE_DEFAULT = M3_XLARGE
 CF_RUNNER_Z1_INSTANCE_TYPE_DEFAULT = R3_XLARGE
@@ -317,7 +321,8 @@ TEMPLATE.add_metadata({
             QUAY_IO_PASSWORD.title: {'default': 'Password'},
             EIP_ALLOCATIONID.title: {'default': 'Allocation Id for Elastic IP'},
             },
-        }
+        },
+    'Version': __version__,
     })
 
 # }}}parameters
