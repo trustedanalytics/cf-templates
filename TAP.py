@@ -941,6 +941,12 @@ BOSH_SECURITY_GROUP.SecurityGroupIngress.extend([
         ToPort='25555',
         SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
         ),
+    ec2.SecurityGroupRule(
+        IpProtocol='tcp',
+        FromPort='9200',
+        ToPort='9200',
+        SourceSecurityGroupId=Ref(JUMP_BOX_SECURITY_GROUP),
+        ),
     ])
 
 BOSH_DIRECTOR_POLICY.Roles.append(Ref(JUMP_BOX_ROLE))
