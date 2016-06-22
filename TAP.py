@@ -58,6 +58,8 @@ ANSIBLE_GROUP_VARS = [
     'provider=aws\n',
     ]
 
+EXISTING_VPC = os.getenv('EXISTING_VPC', False)
+
 TEMPLATE = Template()
 
 TEMPLATE.add_version('2010-09-09')
@@ -250,6 +252,24 @@ CLOUDERA_WORKER_COUNT = TEMPLATE.add_parameter(Parameter(
 
 # }}}parameters-cloudera
 
+# {{{parameters-logsearch
+
+INSTALL_LOGSEARCH = TEMPLATE.add_parameter(Parameter(
+    'InstallLogsearch',
+    Type=STRING,
+    Default='true',
+    AllowedValues=['true', 'false'],
+    ))
+
+LOGSEARCH_DEPLOYMENT_SIZE = TEMPLATE.add_parameter(Parameter(
+    'LogsearchDeploymentSize',
+    Type=STRING,
+    Default='small',
+    AllowedValues=['small', 'medium'],
+    ))
+
+# }}}parameters-logsearch
+
 # {{{parameters-nginx
 
 EIP_ALLOCATIONID = TEMPLATE.add_parameter(Parameter(
@@ -262,7 +282,53 @@ EIP_ALLOCATIONID = TEMPLATE.add_parameter(Parameter(
 
 # }}}parameters-nginx
 
-TEMPLATE.add_metadata({
+# {{{parameters-vpc-subnets
+
+if EXISTING_VPC:
+
+    VPC = TEMPLATE.add_parameter(Parameter(
+        'VPC',
+        Type=VPC_ID,
+        ))
+
+    PUBLIC_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'PublicSubnet',
+        Type=SUBNET_ID,
+        ))
+
+    BOSH_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'BOSHSubnet',
+        Type=SUBNET_ID,
+        ))
+
+    CF_PRIVATE_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'CFPrivateSubnet',
+        Type=SUBNET_ID,
+        ))
+
+    KUBERNETES_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'KubernetesSubnet',
+        Type=SUBNET_ID,
+        ))
+
+    CLOUDERA_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'ClouderaSubnet',
+        Type=SUBNET_ID,
+        ))
+
+    DOCKER_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'DockerSubnet',
+        Type=SUBNET_ID,
+        ))
+
+    LOGSEARCH_SUBNET = TEMPLATE.add_parameter(Parameter(
+        'LogsearchSubnet',
+        Type=SUBNET_ID,
+        ))
+
+# }}}parameters-vpc-subnets
+
+template_metadata = {
     'AWS::CloudFormation::Interface': {
         'ParameterGroups': [
             {
@@ -300,6 +366,13 @@ TEMPLATE.add_metadata({
                     QUAY_IO_PASSWORD.title,
                     ],
                 },
+            {
+                'Label': {'default': 'Configuration for Logsearch'},
+                'Parameters': [
+                    INSTALL_LOGSEARCH.title,
+                    LOGSEARCH_DEPLOYMENT_SIZE.title,
+                    ],
+                },
             ],
         'ParameterLabels': {
             KEY_NAME.title: {'default': 'Key pair name'},
@@ -320,10 +393,45 @@ TEMPLATE.add_metadata({
             QUAY_IO_USERNAME.title: {'default': 'Username'},
             QUAY_IO_PASSWORD.title: {'default': 'Password'},
             EIP_ALLOCATIONID.title: {'default': 'Allocation Id for Elastic IP'},
+            INSTALL_LOGSEARCH.title: {'default': 'Install Logsearch'},
+            LOGSEARCH_DEPLOYMENT_SIZE.title: {'default': 'Logsearch deployment size'},
             },
         },
     'Version': __version__,
-    })
+    }
+
+if EXISTING_VPC:
+
+    template_metadata['AWS::CloudFormation::Interface']['ParameterGroups'].append(
+        {
+            'Label': {'default': 'Configuration for VPC and Subnets'},
+            'Parameters': [
+                VPC.title,
+                PUBLIC_SUBNET.title,
+                BOSH_SUBNET.title,
+                CF_PRIVATE_SUBNET.title,
+                KUBERNETES_SUBNET.title,
+                CLOUDERA_SUBNET.title,
+                DOCKER_SUBNET.title,
+                LOGSEARCH_SUBNET.title,
+                ],
+            },
+        )
+    template_metadata['AWS::CloudFormation::Interface']['ParameterLabels'].update(
+        {
+            VPC.title: {'default': 'VPC ID'},
+            PUBLIC_SUBNET.title: {'default': 'Public Subnet ID'},
+            BOSH_SUBNET.title: {'default': 'Bosh Subnet ID'},
+            CF_PRIVATE_SUBNET.title: {'default': 'Cloud Foundry Subnet ID'},
+            KUBERNETES_SUBNET.title: {'default': 'Kubernetes Subnet ID'},
+            CLOUDERA_SUBNET.title: {'default': 'Cloudera Subnet ID'},
+            DOCKER_SUBNET.title: {'default': 'Docker Broker Subnet ID'},
+            LOGSEARCH_SUBNET.title: {'default': 'Logsearch Subnet ID'},
+            },
+        )
+
+
+TEMPLATE.add_metadata(template_metadata)
 
 # }}}parameters
 
@@ -432,85 +540,188 @@ def user_data(resource):
         Ref(AWS_REGION), '\n'
         ]))
 
-# {{{vpc-with-single-public-subnet
+# {{{vpc
 
-VPC = TEMPLATE.add_resource(ec2.VPC(
-    'VPC',
-    EnableDnsHostnames=True,
-    CidrBlock='10.0.0.0/16',
-    Tags=Tags(Name=Join('-', [Ref(AWS_STACK_NAME), 'vpc'])),
-    ))
+if not EXISTING_VPC:
 
-INTERNET_GATEWAY = TEMPLATE.add_resource(ec2.InternetGateway(
-    'InternetGateway',
-    ))
+    VPC = TEMPLATE.add_resource(ec2.VPC(
+        'VPC',
+        EnableDnsHostnames=True,
+        CidrBlock='10.0.0.0/16',
+        Tags=Tags(Name=Join('-', [Ref(AWS_STACK_NAME), 'vpc'])),
+        ))
 
-ATTACH_GATEWAY = TEMPLATE.add_resource(ec2.VPCGatewayAttachment(
-    'AttachGateway',
-    InternetGatewayId=Ref(INTERNET_GATEWAY),
-    VpcId=Ref(VPC),
-    ))
+    INTERNET_GATEWAY = TEMPLATE.add_resource(ec2.InternetGateway(
+        'InternetGateway',
+        ))
 
-PUBLIC_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'PublicSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.0.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='public subnet'),
-    ))
+    ATTACH_GATEWAY = TEMPLATE.add_resource(ec2.VPCGatewayAttachment(
+        'AttachGateway',
+        InternetGatewayId=Ref(INTERNET_GATEWAY),
+        VpcId=Ref(VPC),
+        ))
 
-PUBLIC_ROUTE_TABLE = TEMPLATE.add_resource(ec2.RouteTable(
-    'PublicRouteTable',
-    VpcId=Ref(VPC),
-    ))
+# }}}vpc
 
-TEMPLATE.add_resource(ec2.Route(
-    'PublicRoute',
-    DependsOn=ATTACH_GATEWAY.title,
-    RouteTableId=Ref(PUBLIC_ROUTE_TABLE),
-    DestinationCidrBlock='0.0.0.0/0',
-    GatewayId=Ref(INTERNET_GATEWAY),
-    ))
+# {{{public-subnet
 
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'PublicSubnetRouteTableAssociation',
-    SubnetId=Ref(PUBLIC_SUBNET),
-    RouteTableId=Ref(PUBLIC_ROUTE_TABLE),
-    ))
+if not EXISTING_VPC:
 
-# }}}vpc-with-single-public-subnet
+    PUBLIC_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'PublicSubnet',
+        DependsOn=ATTACH_GATEWAY.title,
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.0.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='public subnet'),
+        ))
+
+    PUBLIC_ROUTE_TABLE = TEMPLATE.add_resource(ec2.RouteTable(
+        'PublicRouteTable',
+        VpcId=Ref(VPC),
+        ))
+
+    TEMPLATE.add_resource(ec2.Route(
+        'PublicRoute',
+        DependsOn=ATTACH_GATEWAY.title,
+        RouteTableId=Ref(PUBLIC_ROUTE_TABLE),
+        DestinationCidrBlock='0.0.0.0/0',
+        GatewayId=Ref(INTERNET_GATEWAY),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'PublicSubnetRouteTableAssociation',
+        SubnetId=Ref(PUBLIC_SUBNET),
+        RouteTableId=Ref(PUBLIC_ROUTE_TABLE),
+        ))
+
+# }}}public-subnet
 
 # {{{nat-gateway
 
-NAT_EIP = TEMPLATE.add_resource(ec2.EIP(
-    'NATEIP',
-    DependsOn=ATTACH_GATEWAY.title,
-    Domain='vpc',
-    ))
+if not EXISTING_VPC:
 
-NAT_GATEWAY = TEMPLATE.add_resource(ec2.NatGateway(
-    'NATGateway',
-    AllocationId=GetAtt(NAT_EIP, 'AllocationId'),
-    SubnetId=Ref(PUBLIC_SUBNET),
-    ))
+    NAT_EIP = TEMPLATE.add_resource(ec2.EIP(
+        'NATEIP',
+        DependsOn=ATTACH_GATEWAY.title,
+        Domain='vpc',
+        ))
+    
+    NAT_GATEWAY = TEMPLATE.add_resource(ec2.NatGateway(
+        'NATGateway',
+        AllocationId=GetAtt(NAT_EIP, 'AllocationId'),
+        SubnetId=Ref(PUBLIC_SUBNET),
+        ))
 
 # }}}nat-gateway
 
 # {{{private-route-table
 
-PRIVATE_ROUTE_TABLE = TEMPLATE.add_resource(ec2.RouteTable(
-    'PrivateRouteTable',
-    VpcId=Ref(VPC),
-    ))
+if not EXISTING_VPC:
 
-TEMPLATE.add_resource(ec2.Route(
-    'PrivateRoute',
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    DestinationCidrBlock='0.0.0.0/0',
-    NatGatewayId=Ref(NAT_GATEWAY),
-    ))
+    PRIVATE_ROUTE_TABLE = TEMPLATE.add_resource(ec2.RouteTable(
+        'PrivateRouteTable',
+        VpcId=Ref(VPC),
+        ))
+
+    TEMPLATE.add_resource(ec2.Route(
+        'PrivateRoute',
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        DestinationCidrBlock='0.0.0.0/0',
+        NatGatewayId=Ref(NAT_GATEWAY),
+        ))
 
 # }}}private-route-table
+
+# {{{private-subnets
+
+if not EXISTING_VPC:
+
+    BOSH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'BOSHSubnet',
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.1.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='BOSH subnet'),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'BOSHSubnetRouteTableAssociation',
+        SubnetId=Ref(BOSH_SUBNET),
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        ))
+
+    CF_PRIVATE_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'CFPrivateSubnet',
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.2.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='Cloud Foundry subnet'),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'CFPrivateSubnetRouteTableAssociation',
+        SubnetId=Ref(CF_PRIVATE_SUBNET),
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        ))
+
+    KUBERNETES_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'KubernetesSubnet',
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.6.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='Kubernetes subnet'),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'KubernetesSubnetRouteTableAssociation',
+        SubnetId=Ref(KUBERNETES_SUBNET),
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        ))
+
+    CLOUDERA_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'ClouderaSubnet',
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.5.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='Cloudera subnet'),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'ClouderaSubnetRouteTableAssociation',
+        SubnetId=Ref(CLOUDERA_SUBNET),
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        ))
+
+    DOCKER_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'DockerSubnet',
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.4.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='Docker Broker subnet'),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'DockerSubnetRouteTableAssociation',
+        SubnetId=Ref(DOCKER_SUBNET),
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        ))
+
+    LOGSEARCH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
+        'LogsearchSubnet',
+        VpcId=Ref(VPC),
+        CidrBlock='10.0.7.0/24',
+        AvailabilityZone=Select(0, GetAZs()),
+        Tags=Tags(Name='Logsearch subnet'),
+        ))
+
+    TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
+        'LogsearchSubnetRouteTableAssociation',
+        SubnetId=Ref(LOGSEARCH_SUBNET),
+        RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
+        ))
+
+# }}}private-subnets
 
 # {{{jump-box
 
@@ -598,7 +809,6 @@ JUMP_BOX_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
 
 JUMP_BOX_EIP = TEMPLATE.add_resource(ec2.EIP(
     'JumpBoxEIP',
-    DependsOn=ATTACH_GATEWAY.title,
     Domain='vpc',
     InstanceId=Ref(JUMP_BOX_INSTANCE),
     ))
@@ -626,20 +836,6 @@ KEY_NAME_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
 # }}}key-name
 
 # {{{bosh
-
-BOSH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'BOSHSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.1.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='BOSH subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'BOSHSubnetRouteTableAssociation',
-    SubnetId=Ref(BOSH_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
 
 BOSH_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'BOSHSecurityGroup',
@@ -758,20 +954,6 @@ BOSH_DIRECTOR_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
 
 # {{{cf
 
-CF_PRIVATE_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'CFPrivateSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.2.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Cloud Foundry subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'CFPrivateSubnetRouteTableAssociation',
-    SubnetId=Ref(CF_PRIVATE_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
-
 CF_PUBLIC_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'CFPublicSecurityGroup',
     GroupDescription='cf-public',
@@ -826,20 +1008,6 @@ TEMPLATE.add_output(Output(
 # }}}cf
 
 # {{{kubernetes
-
-KUBERNETES_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'KubernetesSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.6.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Kubernetes subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'KubernetesSubnetRouteTableAssociation',
-    SubnetId=Ref(KUBERNETES_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
 
 KUBERNETES_USER = TEMPLATE.add_resource(iam.User(
     'KubernetesUser',
@@ -953,7 +1121,7 @@ for protocol in ('tcp', 'udp'):
             IpProtocol=protocol,
             FromPort=str(port),
             ToPort=str(port),
-            CidrIp=GetAtt(VPC, 'CidrBlock'),
+            CidrIp='0.0.0.0/0',
             GroupId=Ref(CONSUL_SECURITY_GROUP),
             ))
 
@@ -983,27 +1151,13 @@ for protocol in ('tcp', 'udp'):
         IpProtocol=protocol,
         FromPort='53',
         ToPort='53',
-        CidrIp=GetAtt(VPC, 'CidrBlock'),
+        CidrIp='0.0.0.0/0',
         GroupId=Ref(DNS_SECURITY_GROUP),
         ))
 
 # }}}dns
 
 # {{{cloudera
-
-CLOUDERA_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'ClouderaSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.5.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Cloudera subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'ClouderaSubnetRouteTableAssociation',
-    SubnetId=Ref(CLOUDERA_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
 
 CLOUDERA_ROLE = TEMPLATE.add_resource(iam.Role(
     'ClouderaRole',
@@ -1228,20 +1382,6 @@ CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScali
 
 # {{{docker-broker
 
-DOCKER_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'DockerSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.4.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Docker Broker subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'DockerSubnetRouteTableAssociation',
-    SubnetId=Ref(DOCKER_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
-
 DOCKER_BROKER_SECURITY_GROUP = TEMPLATE.add_resource(ec2.SecurityGroup(
     'DockerBrokerPublicSecurityGroup',
     GroupDescription='docker-broker',
@@ -1289,39 +1429,6 @@ DOCKER_BROKER_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitConditio
     ))
 
 # }}}docker-broker
-
-# {{{logsearch
-
-LOGSEARCH_SUBNET = TEMPLATE.add_resource(ec2.Subnet(
-    'LogsearchSubnet',
-    VpcId=Ref(VPC),
-    CidrBlock='10.0.7.0/24',
-    AvailabilityZone=Select(0, GetAZs()),
-    Tags=Tags(Name='Logsearch subnet'),
-    ))
-
-TEMPLATE.add_resource(ec2.SubnetRouteTableAssociation(
-    'LogsearchSubnetRouteTableAssociation',
-    SubnetId=Ref(LOGSEARCH_SUBNET),
-    RouteTableId=Ref(PRIVATE_ROUTE_TABLE),
-    ))
-
-INSTALL_LOGSEARCH = TEMPLATE.add_parameter(Parameter(
-    'InstallLogsearch',
-    Type=STRING,
-    Default='true',
-    AllowedValues=['true', 'false'],
-    ))
-
-LOGSEARCH_DEPLOYMENT_SIZE = TEMPLATE.add_parameter(Parameter(
-    'LogsearchDeploymentSize',
-    Type=STRING,
-    Default='small',
-    AllowedValues=['small', 'medium'],
-    ))
-
-
-# }}}logsearch
 
 # {{{nginx
 
