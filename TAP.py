@@ -1595,6 +1595,7 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'kubernetes_subnet_id=', Ref(KUBERNETES_SUBNET), '\n',
     'stack=', Ref(AWS_STACK_NAME), '\n',
     'region=', Ref(AWS_REGION), '\n',
+    'vpc_id=', Ref(VPC), '\n',
     ])
 
 user_data(NGINX_INSTANCE)
