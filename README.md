@@ -60,13 +60,11 @@ $ ./TAP.py >TAP.template
 
 Create everything:
 
-[](Change vX.Y.Z to release version with this change)
-[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=tap&templateURL=https://s3.amazonaws.com/trustedanalytics/vX.Y.Z/cf-templates/TAP.template)
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=tap&templateURL=https://s3.amazonaws.com/trustedanalytics/v0.7.2/cf-templates/TAP.template)
 
 Deploy to existing VPC and Subnets:
 
-[](Change vX.Y.Z to release version with this change)
-[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=tap&templateURL=https://s3.amazonaws.com/trustedanalytics/vX.Y.Z/cf-templates/TAP-VPC.template)
+[![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=tap&templateURL=https://s3.amazonaws.com/trustedanalytics/v0.7.2/cf-templates/TAP-existingVPC.template)
 
 ## Creating an AWS CloudFormation stack using `cfn` script
 
