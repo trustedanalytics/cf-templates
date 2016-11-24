@@ -514,7 +514,7 @@ def metadata(resource, ansible_group_name, ansible_group_vars=None):
             }),
         )
 
-def user_data(resource):
+def user_data_ubuntu(resource):
     resource.UserData = Base64(Join('', [
         '#!/bin/bash\n',
         '\n',
@@ -530,14 +530,28 @@ def user_data(resource):
         '\n',
         'apt-get -q update\n',
         'apt-get -qy install autoconf build-essential python-dev libffi-dev libssl-dev\n',
+        'apt-get -qy upgrade\n',
+        'apt-get -qy dist-upgrade\n',
         '\n',
         'pip install -q ansible==2.0.2.0\n',
         '\n',
         'pip install ',
         'https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n',
         '\n',
+        'uname -r |grep -q 3.13.0-67-generic && reboot\n'
         'cfn-init -s ', Ref(AWS_STACK_NAME), ' -r {0} --region '.format(resource.title),
         Ref(AWS_REGION), '\n'
+        ]))
+
+def user_data_rhel(resource):
+    resource.UserData = Base64(Join('', [
+        '#!/bin/bash\n',
+        '\n',
+        'set -e\n',
+        '\n',
+        'yum -y update kernel\n'
+        '\n',
+        'uname -r |grep -q 2.6.32-573.el6.x86_64 && reboot\n'
         ]))
 
 # {{{vpc
@@ -1276,6 +1290,8 @@ CLOUDERA_MANAGER_INSTANCE = TEMPLATE.add_resource(ec2.Instance(
     Tags=Tags(Name='Cloudera Manager'),
     ))
 
+user_data_rhel(CLOUDERA_MANAGER_INSTANCE)
+
 CLOUDERA_MASTER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     'ClouderaMasterInstanceProfile',
     Roles=[Ref(CLOUDERA_ROLE)],
@@ -1329,6 +1345,8 @@ CLOUDERA_MASTER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScali
     VPCZoneIdentifier=[Ref(CLOUDERA_SUBNET)],
     ))
 
+user_data_rhel(CLOUDERA_MASTER_LAUNCH_CONFIGURATION)
+
 CLOUDERA_WORKER_INSTANCE_PROFILE = TEMPLATE.add_resource(iam.InstanceProfile(
     'ClouderaWorkerInstanceProfile',
     Roles=[Ref(CLOUDERA_ROLE)],
@@ -1377,6 +1395,8 @@ CLOUDERA_WORKER_AUTO_SCALING_GROUP = TEMPLATE.add_resource(autoscaling.AutoScali
     MaxSize=Ref(CLOUDERA_WORKER_COUNT),
     VPCZoneIdentifier=[Ref(CLOUDERA_SUBNET)],
     ))
+
+user_data_rhel(CLOUDERA_WORKER_LAUNCH_CONFIGURATION)
 
 # }}}cloudera
 
@@ -1559,7 +1579,7 @@ NGINX_WAIT_CONDITION = TEMPLATE.add_resource(cloudformation.WaitCondition(
 
 # }}}nginx
 
-user_data(JUMP_BOX_INSTANCE)
+user_data_ubuntu(JUMP_BOX_INSTANCE)
 metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'key_name=', Join('-', [Ref(AWS_STACK_NAME), 'key']), '\n',
     'key_name_wait_condition_handle=', Ref(KEY_NAME_WAIT_CONDITION_HANDLE), '\n',
@@ -1598,7 +1618,7 @@ metadata(JUMP_BOX_INSTANCE, 'jump-boxes', [
     'vpc_id=', Ref(VPC), '\n',
     ])
 
-user_data(NGINX_INSTANCE)
+user_data_ubuntu(NGINX_INSTANCE)
 metadata(NGINX_INSTANCE, 'nginx', [
     'cf_system_domain=', Ref(CF_SYSTEM_DOMAIN), '\n'
     'cf_private_subnet_id=', Ref(CF_PRIVATE_SUBNET), '\n',
