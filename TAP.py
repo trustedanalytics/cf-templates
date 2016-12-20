@@ -538,9 +538,9 @@ def user_data_ubuntu(resource):
         'pip install ',
         'https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz\n',
         '\n',
-        'uname -r |grep -q 3.13.0-67-generic && reboot\n'
         'cfn-init -s ', Ref(AWS_STACK_NAME), ' -r {0} --region '.format(resource.title),
-        Ref(AWS_REGION), '\n'
+        Ref(AWS_REGION), '\n',
+        'uname -r |grep -q 3.13.0-67-generic && reboot\n'
         ]))
 
 def user_data_rhel(resource):
