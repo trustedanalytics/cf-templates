@@ -540,7 +540,7 @@ def user_data_ubuntu(resource):
         '\n',
         'cfn-init -s ', Ref(AWS_STACK_NAME), ' -r {0} --region '.format(resource.title),
         Ref(AWS_REGION), '\n',
-        'uname -r |grep -q 3.13.0-67-generic && reboot\n'
+        '[ -f "/var/run/reboot-required" ] && reboot\n'
         ]))
 
 def user_data_rhel(resource):
@@ -551,7 +551,7 @@ def user_data_rhel(resource):
         '\n',
         'yum -y update kernel\n'
         '\n',
-        'uname -r |grep -q 2.6.32-573.el6.x86_64 && reboot\n'
+        'diff -q <(uname -r) <(rpm -q --last kernel |head -1 |awk \'{sub("kernel-","");print $1}\') || reboot\n'
         ]))
 
 # {{{vpc
